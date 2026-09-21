@@ -1,0 +1,40 @@
+# Python / Django
+*.py[cod]
+__pycache__/
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# Entornos y secretos
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.crt
+
+# Base de datos local
+db.sqlite3
+*.sqlite3
+
+# Django
+/staticfiles/
+/media/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Logs
+*.log
+
+# Datos reales de pacientes / exportaciones de analizadores (nunca al repo)
+data/
+exports/
