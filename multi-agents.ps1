@@ -8,9 +8,9 @@ $RepoRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Parent   = Split-Path -Parent $RepoRoot
 
 $Roles = @(
-    @{ Dir = "labcore-app-backend";  Branch = "dev/backend";  Etiqueta = "Backend (Django/DRF)";   Deps = "..\Proyectos-app\.venv\Scripts\python.exe" }
-    @{ Dir = "labcore-app-frontend"; Branch = "dev/frontend"; Etiqueta = "Frontend (React/Vite)";   Deps = "..\Proyectos-app\frontend\node_modules" }
-    @{ Dir = "labcore-app-qa";       Branch = "dev/qa";       Etiqueta = "QA (pytest + Playwright)"; Deps = "..\Proyectos-app\.venv + ..\Proyectos-app\qa\e2e\node_modules" }
+    @{ Dir = "labcore-app-backend";  Branch = "dev/backend";  Etiqueta = "Backend (Django/DRF)";   Deps = ".env propio ya provisionado. Python: .\.venv\Scripts\python.exe" }
+    @{ Dir = "labcore-app-frontend"; Branch = "dev/frontend"; Etiqueta = "Frontend (React/Vite)";   Deps = "node_modules ya instalado en frontend\ (npm run dev)" }
+    @{ Dir = "labcore-app-qa";       Branch = "dev/qa";       Etiqueta = "QA (pytest + Playwright)"; Deps = ".venv + qa\e2e\node_modules ya provisionados" }
 )
 
 foreach ($rol in $Roles) {
