@@ -35,6 +35,11 @@ Thumbs.db
 # Logs
 *.log
 
+# Pruebas
+.pytest_cache/
+htmlcov/
+.coverage
+
 # Datos reales de pacientes / exportaciones de analizadores (nunca al repo)
 data/
 exports/

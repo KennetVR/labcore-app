@@ -1,0 +1,9 @@
+Django~=5.1.0
+psycopg[binary]
+Pillow
+qrcode
+python-dotenv
+djangorestframework
+django-cors-headers
+pytest
+pytest-django

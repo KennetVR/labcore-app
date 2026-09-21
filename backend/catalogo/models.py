@@ -8,6 +8,7 @@ class Zona(models.Model):
     class Meta:
         verbose_name = "zona"
         verbose_name_plural = "zonas"
+        ordering = ["nombre"]
 
     def __str__(self):
         return self.nombre

@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 
 from catalogo.models import Cliente, Examen, Paquete
@@ -46,9 +47,10 @@ class Orden(models.Model):
         else:
             modelo, filtro = TarifarioExamen, {"examen": examen}
         candidatas = []
-        for t in modelo.objects.filter(activo=True, vigencia_desde__lte=self.fecha, **filtro).order_by(
-            "vigencia_desde"
-        ):
+        qs = modelo.objects.filter(activo=True, **filtro).filter(
+            Q(vigencia_desde__isnull=True) | Q(vigencia_desde__lte=self.fecha)
+        )
+        for t in qs.order_by("vigencia_desde"):
             if self.cliente_id and t.cliente_id == self.cliente_id:
                 return t.precio
             if t.cliente_id is None and (
