@@ -43,3 +43,6 @@ htmlcov/
 # Datos reales de pacientes / exportaciones de analizadores (nunca al repo)
 data/
 exports/
+
+# Instrucciones locales por worktree (no se versionan)
+AGENTS.md
