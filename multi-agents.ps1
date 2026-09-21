@@ -23,14 +23,14 @@ foreach ($rol in $Roles) {
         Write-Host "[git] worktree $($rol.Dir) ya existe" -ForegroundColor Yellow
     }
 
-    $inner = "Write-Host ''; `$line = '=' * 56; Write-Host `$line -ForegroundColor Cyan; " +
+    $inner = "`[Console`]::Title = 'opencode [$($rol.Branch)] $($rol.Etiqueta)'; " +
+        "Write-Host ''; `$line = '=' * 56; Write-Host `$line -ForegroundColor Cyan; " +
         "Write-Host '  LABCORE-APP  |  rama: $($rol.Branch)'; " +
         "Write-Host '  rol:          $($rol.Etiqueta)'; " +
         "Write-Host '  worktree:     $($rol.Dir)'; " +
         "Write-Host ('-' * 56); " +
-        "Write-Host '  Dependencias (viven en el repo principal):'; Write-Host '    $($rol.Deps)'; " +
-        "Write-Host ('-' * 56); " +
-        "Write-Host '  Lanza el agente con:  opencode'; Write-Host '  Para salir:  exit'; " +
+        "Write-Host '  Lanza el agente con:  opencode (se abre solo arriba)'; " +
+        "Write-Host '  Para salir de opencode y ver este banner:  /exit'; " +
         "Write-Host `$line -ForegroundColor Cyan; Write-Host ''; " +
         "if (Get-Command opencode -ErrorAction SilentlyContinue) { opencode } " +
         "else { Write-Host 'opencode no encontrado en el PATH. Instalalo o escribelo a mano.' -ForegroundColor Yellow }"
