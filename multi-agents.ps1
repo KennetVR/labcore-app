@@ -36,7 +36,7 @@ foreach ($rol in $Roles) {
         "else { Write-Host 'opencode no encontrado en el PATH. Instalalo o escribelo a mano.' -ForegroundColor Yellow }"
 
     $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($inner))
-    Start-Process powershell -NoExit -WorkingDirectory $wtPath `
+    Start-Process powershell -WorkingDirectory $wtPath `
         -ArgumentList "-NoExit", "-EncodedCommand", $encoded
 }
 
