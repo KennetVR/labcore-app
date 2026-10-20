@@ -2,18 +2,19 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { allPages, api, setCsrfToken } from './api/client'
 import type { Order, Session } from './api/types'
-import { money } from './api/types'
+import { money, orderStates } from './api/types'
+import OrderDetail from './components/OrderDetail'
 import OrderForm from './components/OrderForm'
 import './App.css'
 
-const states: Record<string, string> = { registrada: 'Registrada', en_proceso: 'En proceso', resultada: 'Con resultados', validada: 'Validada', pdf: 'PDF generado', entregada: 'Entregada' }
+type View = { kind: 'list' } | { kind: 'form'; key: number } | { kind: 'detail'; id: number }
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [orders, setOrders] = useState<Order[]>([])
-  const [form, setForm] = useState<number | null>(null)
+  const [view, setView] = useState<View>({ kind: 'list' })
   const nextDraft = useRef(0)
   const [query, setQuery] = useState('')
   const [state, setState] = useState('')
@@ -61,7 +62,7 @@ export default function App() {
     setBusy(true); setError('')
     try {
       acceptSession(await api<Session>('/auth/logout/', { method: 'POST' }))
-      setOrders([]); setForm(null)
+      setOrders([]); setView({ kind: 'list' })
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo cerrar sesión.') }
     finally { setBusy(false) }
   }
@@ -84,15 +85,18 @@ export default function App() {
     && `${o.numero} ${o.paciente_nombre} ${o.cliente_nombre}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
   return <div className="workspace">
     <aside className="sidebar"><div className="brand"><span className="brand-mark">LC</span><strong>LabCore</strong></div>
-      <p className="eyebrow">LABORATORIO CLÍNICO</p><nav aria-label="Principal"><button className="nav-active" onClick={() => setForm(null)}>Órdenes</button></nav>
+      <p className="eyebrow">LABORATORIO CLÍNICO</p><nav aria-label="Principal"><button className="nav-active" onClick={() => setView({ kind: 'list' })}>Órdenes</button></nav>
       <p className="sidebar-note">Espacio de trabajo<br />Recepción y laboratorio</p></aside>
     <div className="workspace-main"><header className="topbar"><span>Gestión de órdenes</span><div><strong>{session.user.name}</strong><small>{session.user.role}</small></div><button className="secondary" disabled={busy} onClick={logout}>Cerrar sesión</button></header>
       <main className="content">{error && <div role="alert" className="error">{error} <button className="secondary" onClick={() => { setError(''); refresh(n => n + 1) }}>Reintentar</button></div>}
-        {form !== null ? <OrderForm key={form} onCancel={() => setForm(null)} onSaved={() => { setForm(current => current === form ? null : current); refresh(n => n + 1) }} /> : <>
-          <div className="page-heading"><div><p className="eyebrow">RECEPCIÓN</p><h1>Órdenes de laboratorio</h1><p>Consulte el estado y registre nuevas solicitudes.</p></div><button onClick={() => setForm(++nextDraft.current)}>Nueva orden</button></div>
+        {view.kind === 'form' ? <OrderForm key={view.key} onCancel={() => setView({ kind: 'list' })}
+          onSaved={() => { setView(current => current.kind === 'form' && current.key === view.key ? { kind: 'list' } : current); refresh(n => n + 1) }} />
+          : view.kind === 'detail' ? <OrderDetail key={view.id} id={view.id} onBack={() => setView({ kind: 'list' })} />
+          : <>
+          <div className="page-heading"><div><p className="eyebrow">RECEPCIÓN</p><h1>Órdenes de laboratorio</h1><p>Consulte el estado y registre nuevas solicitudes.</p></div><button onClick={() => setView({ kind: 'form', key: ++nextDraft.current })}>Nueva orden</button></div>
           <div className="stats"><article><span>Órdenes registradas</span><strong>{orders.length}</strong></article><article><span>Pendientes de iniciar</span><strong>{orders.filter(o => o.estado === 'registrada').length}</strong></article><article><span>Sin total disponible</span><strong>{orders.filter(o => o.total === null).length}</strong></article></div>
-          <section className="panel"><div className="filters"><label>Buscar<input value={query} onChange={e => setQuery(e.target.value)} placeholder="Número, paciente o cliente" /></label><label>Estado<select value={state} onChange={e => setState(e.target.value)}><option value="">Todos</option>{Object.entries(states).map(([key, title]) => <option key={key} value={key}>{title}</option>)}</select></label><label>Fecha<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label></div>
-            {loading ? <p role="status" className="empty">Cargando órdenes…</p> : <><div className="table-scroll"><table><thead><tr><th>Orden</th><th>Paciente</th><th>Cliente</th><th>Fecha</th><th>Estado</th><th>Total</th></tr></thead><tbody>{visible.map(o => <tr key={o.id}><td><strong>{o.numero}</strong></td><td>{o.paciente_nombre || 'Sin paciente'}</td><td>{o.cliente_nombre || 'Particular'}</td><td>{o.fecha}</td><td><span className={`badge ${o.estado}`}>{states[o.estado] || o.estado}</span></td><td>{o.total === null ? <span className="warning">Tarifa pendiente</span> : money(o.total)}</td></tr>)}</tbody></table></div>{visible.length === 0 && <p className="empty">No hay órdenes para mostrar.</p>}<p className="table-footer">{visible.length} de {orders.length} órdenes</p></>}
+          <section className="panel"><div className="filters"><label>Buscar<input value={query} onChange={e => setQuery(e.target.value)} placeholder="Número, paciente o cliente" /></label><label>Estado<select value={state} onChange={e => setState(e.target.value)}><option value="">Todos</option>{Object.entries(orderStates).map(([key, title]) => <option key={key} value={key}>{title}</option>)}</select></label><label>Fecha<input type="date" value={date} onChange={e => setDate(e.target.value)} /></label></div>
+            {loading ? <p role="status" className="empty">Cargando órdenes…</p> : <><div className="table-scroll"><table><thead><tr><th>Orden</th><th>Paciente</th><th>Cliente</th><th>Fecha</th><th>Estado</th><th>Total</th><th>Acciones</th></tr></thead><tbody>{visible.map(o => <tr key={o.id}><td><strong>{o.numero}</strong></td><td>{o.paciente_nombre || 'Sin paciente'}</td><td>{o.cliente_nombre || 'Particular'}</td><td>{o.fecha}</td><td><span className={`badge ${o.estado}`}>{orderStates[o.estado] || o.estado}</span></td><td>{o.total === null ? <span className="warning">Tarifa pendiente</span> : money(o.total)}</td><td><button className="secondary" aria-label={`Ver orden ${o.numero}`} onClick={() => setView({ kind: 'detail', id: o.id })}>Ver</button></td></tr>)}</tbody></table></div>{visible.length === 0 && <p className="empty">No hay órdenes para mostrar.</p>}<p className="table-footer">{visible.length} de {orders.length} órdenes</p></>}
           </section></>}
       </main>
     </div>

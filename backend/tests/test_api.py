@@ -64,6 +64,25 @@ def test_calculo_total_orden_con_paquete(api, usuario):
 
 
 @pytest.mark.django_db
+def test_detalle_incluye_nombres_de_items(api, usuario):
+    api.force_authenticate(user=usuario)
+    examen = Examen.objects.create(codigo="HB", nombre="Hemoglobina", area="sangre")
+    paquete = Paquete.objects.create(nombre="Control Mensual", frecuencia="mensual")
+    paquete.examenes_compuestos.create(examen=examen, orden=1)
+    TarifarioPaquete.objects.create(paquete=paquete, precio="30.00")
+    orden = Orden.objects.create()
+    OrdenItem.objects.create(orden=orden, examen=examen, paquete=paquete, cantidad=1)
+
+    resp = api.get(f"/api/ordenes/{orden.id}/")
+
+    assert resp.status_code == 200
+    item = resp.data["items"][0]
+    assert item["examen_codigo"] == "HB"
+    assert item["examen_nombre"] == "Hemoglobina"
+    assert item["paquete_nombre"] == "Control Mensual"
+
+
+@pytest.mark.django_db
 def test_rechaza_orden_si_un_examen_no_tiene_tarifa(api, usuario):
     api.force_authenticate(user=usuario)
     examen = Examen.objects.create(codigo="FERR", nombre="Ferritina", area="sangre")

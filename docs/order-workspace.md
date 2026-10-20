@@ -6,6 +6,8 @@ Use an existing Django account; no password is embedded in the UI.
 
 1. Sign in. Session credentials remain in Django cookies, never local storage.
 2. Browse orders and filter by number/patient/client text, status, or exact date.
+   Select **Ver** on a row to open the order detail: state, patient, client,
+   requesting user, total, studies, per-item result, and observation.
 3. Select **Nueva orden**, an existing patient, and the appropriate client.
 4. Add exams or packages. Each package is one billable line using its first member
    as the required exam reference. Packages without a resolvable member cannot be added.
