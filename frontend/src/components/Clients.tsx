@@ -5,7 +5,12 @@ import type { Customer, Zone } from '../api/types'
 
 const types: Record<string, string> = { clinica: 'Clínica / Consultorio', dialisis: 'Centro de diálisis' }
 
-function ClientForm({ zones, onCancel, onSaved }: { zones: Zone[]; onCancel: () => void; onSaved: () => void }) {
+function ClientForm({ zones, client, onCancel, onSaved }: {
+  zones: Zone[]
+  client?: Customer
+  onCancel: () => void
+  onSaved: () => void
+}) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
@@ -22,24 +27,26 @@ function ClientForm({ zones, onCancel, onSaved }: { zones: Zone[]; onCancel: () 
     }
     setBusy(true); setError('')
     try {
-      await api('/clientes/', { method: 'POST', body: JSON.stringify(payload) })
+      await api(client ? `/clientes/${client.id}/` : '/clientes/', {
+        method: client ? 'PATCH' : 'POST', body: JSON.stringify(payload),
+      })
       onSaved()
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo guardar el cliente.') }
     finally { setBusy(false) }
   }
 
   return <form className="panel form-panel" onSubmit={submit}>
-    <h2>Datos del cliente</h2>
+    <h2>{client ? 'Editar cliente' : 'Datos del cliente'}</h2>
     <div className="field-grid">
-      <label>Nombre<input name="nombre" required maxLength={200} /></label>
-      <label>Tipo<select name="tipo" defaultValue="clinica">{Object.entries(types).map(([key, title]) => <option key={key} value={key}>{title}</option>)}</select></label>
-      <label>Zona<select name="zona" defaultValue=""><option value="">Sin zona</option>{zones.map(z => <option key={z.id} value={z.id}>{z.nombre}</option>)}</select></label>
-      <label>Contacto<input name="contacto" maxLength={200} /></label>
+      <label>Nombre<input name="nombre" required maxLength={200} defaultValue={client?.nombre ?? ''} /></label>
+      <label>Tipo<select name="tipo" defaultValue={client?.tipo ?? 'clinica'}>{Object.entries(types).map(([key, title]) => <option key={key} value={key}>{title}</option>)}</select></label>
+      <label>Zona<select name="zona" defaultValue={client?.zona ?? ''}><option value="">Sin zona</option>{zones.map(z => <option key={z.id} value={z.id}>{z.nombre}</option>)}</select></label>
+      <label>Contacto<input name="contacto" maxLength={200} defaultValue={client?.contacto ?? ''} /></label>
     </div>
-    <label className="check"><input type="checkbox" name="activo" defaultChecked /> Cliente activo</label>
+    <label className="check"><input type="checkbox" name="activo" defaultChecked={client ? client.activo : true} /> Cliente activo</label>
     {error && <p role="alert" className="error">{error}</p>}
     <div className="form-actions">
-      <button disabled={busy}>{busy ? 'Guardando…' : 'Guardar cliente'}</button>
+      <button disabled={busy}>{busy ? 'Guardando…' : client ? 'Guardar cambios' : 'Guardar cliente'}</button>
       <button type="button" className="secondary" disabled={busy} onClick={onCancel}>Cancelar</button>
     </div>
   </form>
@@ -51,8 +58,9 @@ export default function Clients() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
-  const [open, setOpen] = useState(false)
+  const [editing, setEditing] = useState<Customer | 'new' | null>(null)
   const [revision, refresh] = useState(0)
+
   useEffect(() => {
     const controller = new AbortController()
     Promise.all([allPages<Customer>('/clientes/', controller.signal), allPages<Zone>('/zonas/', controller.signal)])
@@ -62,18 +70,28 @@ export default function Clients() {
     return () => controller.abort()
   }, [revision])
 
+  async function remove(client: Customer) {
+    if (!window.confirm(`¿Eliminar a ${client.nombre}?`)) return
+    try {
+      await api(`/clientes/${client.id}/`, { method: 'DELETE' })
+      refresh(n => n + 1)
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo eliminar el cliente.') }
+  }
+
   const visible = clients.filter(c => `${c.nombre} ${c.contacto}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
   const zoneName = (id: number | null) => zones.find(z => z.id === id)?.nombre ?? 'Sin zona'
 
   return <>
     <div className="page-heading"><div><p className="eyebrow">CARTERA</p><h1>Clientes</h1><p>Clínicas, consultorios y centros de diálisis.</p></div>
-      {!open && <button onClick={() => setOpen(true)}>Nuevo cliente</button>}</div>
+      {!editing && <button onClick={() => setEditing('new')}>Nuevo cliente</button>}</div>
     {error && <div className="error" role="alert">{error} <button className="secondary" onClick={() => { setError(''); refresh(n => n + 1) }}>Reintentar</button></div>}
-    {open ? <ClientForm zones={zones} onCancel={() => setOpen(false)} onSaved={() => { setOpen(false); refresh(n => n + 1) }} /> : <section className="panel">
+    {editing ? <ClientForm zones={zones} client={editing === 'new' ? undefined : editing}
+      onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(n => n + 1) }} /> : <section className="panel">
       <div className="filters"><label>Buscar<input value={query} onChange={e => setQuery(e.target.value)} placeholder="Nombre o contacto" /></label></div>
       {loading ? <p role="status" className="empty">Cargando clientes…</p> : <>
-        <div className="table-scroll"><table><thead><tr><th>Cliente</th><th>Tipo</th><th>Zona</th><th>Contacto</th><th>Estado</th></tr></thead>
-          <tbody>{visible.map(c => <tr key={c.id}><td><strong>{c.nombre}</strong></td><td>{types[c.tipo] || c.tipo}</td><td>{zoneName(c.zona)}</td><td>{c.contacto || '—'}</td><td><span className={`badge ${c.activo ? 'validada' : ''}`}>{c.activo ? 'Activo' : 'Inactivo'}</span></td></tr>)}</tbody></table></div>
+        <div className="table-scroll"><table><thead><tr><th>Cliente</th><th>Tipo</th><th>Zona</th><th>Contacto</th><th>Estado</th><th></th></tr></thead>
+          <tbody>{visible.map(c => <tr key={c.id}><td><strong>{c.nombre}</strong></td><td>{types[c.tipo] || c.tipo}</td><td>{zoneName(c.zona)}</td><td>{c.contacto || '—'}</td><td><span className={`badge ${c.activo ? 'validada' : ''}`}>{c.activo ? 'Activo' : 'Inactivo'}</span></td>
+            <td className="row-actions"><button className="link" onClick={() => setEditing(c)}>Editar</button><button className="link danger" onClick={() => remove(c)}>Eliminar</button></td></tr>)}</tbody></table></div>
         {visible.length === 0 && <p className="empty">No hay clientes para mostrar.</p>}
         <p className="table-footer">{visible.length} de {clients.length} clientes</p></>}
     </section>}

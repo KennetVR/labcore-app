@@ -8,9 +8,10 @@ import Clients from './components/Clients'
 import OrderDetail from './components/OrderDetail'
 import OrderForm from './components/OrderForm'
 import Patients from './components/Patients'
+import Tariffs from './components/Tariffs'
 import './App.css'
 
-type View = { kind: 'list' } | { kind: 'form'; key: number } | { kind: 'detail'; id: number } | { kind: 'patients' } | { kind: 'clients' } | { kind: 'catalog' }
+type View = { kind: 'list' } | { kind: 'form'; key: number } | { kind: 'detail'; id: number } | { kind: 'patients' } | { kind: 'clients' } | { kind: 'catalog' } | { kind: 'tariffs' }
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
@@ -94,16 +95,18 @@ export default function App() {
         <button className={view.kind === 'patients' ? 'nav-active' : ''} onClick={() => setView({ kind: 'patients' })}>Pacientes</button>
         <button className={view.kind === 'clients' ? 'nav-active' : ''} onClick={() => setView({ kind: 'clients' })}>Clientes</button>
         <button className={view.kind === 'catalog' ? 'nav-active' : ''} onClick={() => setView({ kind: 'catalog' })}>Catálogo</button>
+        <button className={view.kind === 'tariffs' ? 'nav-active' : ''} onClick={() => setView({ kind: 'tariffs' })}>Tarifarios</button>
       </nav>
       <p className="sidebar-note">Espacio de trabajo<br />Recepción y laboratorio</p></aside>
     <div className="workspace-main"><header className="topbar"><span>Gestión de órdenes</span><div><strong>{session.user.name}</strong><small>{session.user.role}</small></div><button className="secondary" disabled={busy} onClick={logout}>Cerrar sesión</button></header>
       <main className="content">{error && <div role="alert" className="error">{error} <button className="secondary" onClick={() => { setError(''); refresh(n => n + 1) }}>Reintentar</button></div>}
-        {view.kind === 'catalog' ? <Catalog />
+        {view.kind === 'tariffs' ? <Tariffs />
+          : view.kind === 'catalog' ? <Catalog />
           : view.kind === 'clients' ? <Clients />
           : view.kind === 'patients' ? <Patients />
           : view.kind === 'form' ? <OrderForm key={view.key} onCancel={() => setView({ kind: 'list' })}
           onSaved={() => { setView(current => current.kind === 'form' && current.key === view.key ? { kind: 'list' } : current); refresh(n => n + 1) }} />
-          : view.kind === 'detail' ? <OrderDetail key={view.id} id={view.id} onBack={() => setView({ kind: 'list' })} />
+          : view.kind === 'detail' ? <OrderDetail key={view.id} id={view.id} role={session.user.role} onBack={() => setView({ kind: 'list' })} />
           : <>
           <div className="page-heading"><div><p className="eyebrow">RECEPCIÓN</p><h1>Órdenes de laboratorio</h1><p>Consulte el estado y registre nuevas solicitudes.</p></div><button onClick={() => setView({ kind: 'form', key: ++nextDraft.current })}>Nueva orden</button></div>
           <div className="stats"><article><span>Órdenes registradas</span><strong>{orders.length}</strong></article><article><span>Pendientes de iniciar</span><strong>{orders.filter(o => o.estado === 'registrada').length}</strong></article><article><span>Sin total disponible</span><strong>{orders.filter(o => o.total === null).length}</strong></article></div>
