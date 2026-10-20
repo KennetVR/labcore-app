@@ -59,5 +59,5 @@ test('registers an in-hand delivery without email', async ({ page }) => {
   await page.getByRole('button', { name: 'Registrar entrega' }).click()
 
   await expect.poll(() => sent).toBe('')
-  await expect(page.getByText(/en mano/)).toBeVisible()
+  await expect(page.getByText(/Entregada.*en mano/)).toBeVisible()
 })

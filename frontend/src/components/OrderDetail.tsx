@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { OrderDetail as Order } from '../api/types'
+import type { OrderDetail as Order, EnvioReporte } from '../api/types'
 import { money, orderStates } from '../api/types'
 
 const measurements: Record<string, string> = { unica: 'Única', pre_post: 'Pre y post' }
@@ -12,9 +12,11 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
   const [order, setOrder] = useState<Order | null>(null)
   const [drafts, setDrafts] = useState<Record<number, Draft>>({})
   const [email, setEmail] = useState('')
+  const [resendEmail, setResendEmail] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState('')
   const [retry, setRetry] = useState(0)
+  const [history, setHistory] = useState<EnvioReporte[]>([])
 
   function load(data: Order) {
     setOrder(data)
@@ -28,6 +30,15 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
       .catch(e => { if (!controller.signal.aborted) setError(e.message) })
     return () => controller.abort()
   }, [id, retry])
+
+  useEffect(() => {
+    if (!order) return
+    let cancelled = false
+    api<{ results: EnvioReporte[] }>(`/ordenes/${order.id}/envios/`)
+      .then(data => { if (!cancelled) setHistory(data.results) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [order, retry])
 
   const editable = order !== null && !closedStates.includes(order.estado)
   const canValidate = role === 'admin' || role === 'encargada'
@@ -73,6 +84,20 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
         method: 'POST', body: JSON.stringify({ enviado_a: email.trim() }),
       }))
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo registrar la entrega.') }
+    finally { setBusy('') }
+  }
+
+  async function resendReport() {
+    if (!order) return
+    setBusy('reenviar'); setError('')
+    try {
+      await api(`/ordenes/${order.id}/reenviar/`, {
+        method: 'POST', body: JSON.stringify({ enviado_a: resendEmail.trim(), solicitud: crypto.randomUUID() }),
+      })
+      setResendEmail('')
+      await api<{ results: EnvioReporte[] }>(`/ordenes/${order.id}/envios/`)
+        .then(data => setHistory(data.results))
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo reenviar el reporte.') }
     finally { setBusy('') }
   }
 
@@ -150,6 +175,27 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
             </button>
           </div>
         </>}
+      </section> : null}
+      {order.reporte && canReport ? <section className="panel detail-panel">
+        <h2>Historial de envíos</h2>
+        {history.length === 0 && order.estado !== 'entregada' ? <p className="empty">Sin envíos registrados.</p> : <div className="table-scroll">
+          <table><thead><tr><th>Fecha</th><th>Destinatario</th><th>Estado</th><th>Registrado por</th><th>Reenvío</th></tr></thead>
+            <tbody>{history.map(e => <tr key={e.id}>
+              <td>{new Date(e.fecha).toLocaleString('es-PE')}</td>
+              <td>{e.enviado_a}</td>
+              <td><span className={`badge ${e.estado}`}>{e.estado}</span></td>
+              <td>{e.usuario}</td>
+              <td>{e.reenvio ? 'Sí' : 'No'}</td>
+            </tr>)}</tbody></table>
+        </div>}
+        {order.estado === 'entregada' && <div className="delivery-form" style={{marginTop: '12px'}}>
+          <label>Nuevo correo de entrega (opcional)
+            <input type="email" value={resendEmail} onChange={e => setResendEmail(e.target.value)} placeholder="otro@correo.com" />
+          </label>
+          <button disabled={busy !== ''} onClick={resendReport}>
+            {busy === 'reenviar' ? 'Reenviando…' : resendEmail.trim() ? 'Reenviar por correo' : 'Reenviar en mano'}
+          </button>
+        </div>}
       </section> : null}
       <section className="panel detail-panel">
         <h2>Observación</h2>
