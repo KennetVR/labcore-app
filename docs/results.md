@@ -29,7 +29,7 @@ Cuerpo de `resultados/`:
 
 - Los resultados son texto libre; no se valida contra `ref_min`, `ref_max` ni se calcula la bandera automáticamente.
 - Un paquete se captura por sus exámenes componentes, no como un resultado único.
-- La generación de PDF y el envío al paciente todavía no están implementados.
+- La generación de PDF y el envío al paciente se documentan en `docs/reports.md`.
 
 ## Verificación
 

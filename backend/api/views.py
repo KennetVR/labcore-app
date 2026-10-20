@@ -1,5 +1,6 @@
 from django.db import transaction
 from django.db.models import ProtectedError
+from django.http import FileResponse
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -15,6 +16,8 @@ from catalogo.models import (
 )
 from ordenes.models import Orden
 from pacientes.models import Paciente
+from reportes.models import Reporte
+from reportes.pdf import generar_pdf
 
 from .serializers import (
     ClienteSerializer,
@@ -22,6 +25,7 @@ from .serializers import (
     OrdenSerializer,
     PaqueteSerializer,
     PacienteSerializer,
+    ReporteSerializer,
     TarifarioExamenSerializer,
     TarifarioPaqueteSerializer,
     ZonaSerializer,
@@ -87,7 +91,7 @@ class TarifarioPaqueteViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
 
 
 class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
-    queryset = Orden.objects.all()
+    queryset = Orden.objects.select_related("reporte")
     serializer_class = OrdenSerializer
     search_fields = ["numero", "paciente__dni", "paciente__apellidos"]
 
@@ -184,3 +188,70 @@ class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
             orden.estado = Orden.Estado.VALIDADA
             orden.save(update_fields=["estado"])
         return Response(self.get_serializer(orden).data)
+
+    @action(detail=True, methods=["post"])
+    def reporte(self, request, pk=None):
+        if getattr(request.user, "rol", "") not in ("admin", "encargada", "reportes"):
+            return Response(
+                {"detail": "No tiene permiso para generar reportes."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        orden = self.get_object()
+        existente = getattr(orden, "reporte", None)
+        if existente is not None:
+            return Response(
+                self.get_serializer(orden).data["reporte"],
+                status=status.HTTP_200_OK,
+            )
+        if orden.estado != Orden.Estado.VALIDADA:
+            return Response(
+                {"detail": "Solo se genera el reporte de una orden validada."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        reporte = Reporte(orden=orden, generado_por=request.user)
+        try:
+            with transaction.atomic():
+                reporte.save()
+                reporte.codigo_qr = f"LAB-{reporte.numero}"
+                reporte.pdf.save(
+                    f"{reporte.numero}.pdf", generar_pdf(orden, reporte), save=False
+                )
+                reporte.save(update_fields=["codigo_qr", "pdf"])
+                orden.estado = Orden.Estado.PDF
+                orden.save(update_fields=["estado"])
+        except Exception:
+            if reporte.pdf:
+                reporte.pdf.delete(save=False)
+            return Response(
+                {"detail": "No se pudo generar el PDF del reporte."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        return Response(
+            {
+                "id": reporte.id,
+                "numero": reporte.numero,
+                "generado": reporte.generado.isoformat(),
+                "pdf_url": f"/api/reportes/{reporte.id}/pdf/",
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class ReporteViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Reporte.objects.select_related("orden")
+    serializer_class = ReporteSerializer
+    search_fields = ["numero", "orden__numero"]
+
+    @action(detail=True, methods=["get"])
+    def pdf(self, request, pk=None):
+        reporte = self.get_object()
+        if not reporte.pdf or not reporte.pdf.storage.exists(reporte.pdf.name):
+            return Response(
+                {"detail": "El reporte todavía no tiene PDF."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        return FileResponse(
+            reporte.pdf.open("rb"),
+            as_attachment=True,
+            filename=f"{reporte.numero}.pdf",
+        )

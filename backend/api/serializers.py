@@ -14,6 +14,7 @@ from catalogo.models import (
 )
 from ordenes.models import Orden, OrdenItem
 from pacientes.models import Paciente
+from reportes.models import Reporte
 
 
 class ZonaSerializer(serializers.ModelSerializer):
@@ -164,6 +165,26 @@ class TarifarioPaqueteSerializer(serializers.ModelSerializer):
         ]
 
 
+class ReporteSerializer(serializers.ModelSerializer):
+    orden_numero = serializers.CharField(source="orden.numero", read_only=True)
+    pdf_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Reporte
+        fields = [
+            "id",
+            "numero",
+            "orden",
+            "orden_numero",
+            "generado",
+            "codigo_qr",
+            "pdf_url",
+        ]
+
+    def get_pdf_url(self, obj):
+        return f"/api/reportes/{obj.id}/pdf/" if obj.pdf else None
+
+
 class PacienteSerializer(serializers.ModelSerializer):
     nombre_completo = serializers.CharField(read_only=True)
 
@@ -221,6 +242,7 @@ class OrdenItemSerializer(serializers.ModelSerializer):
 class OrdenSerializer(serializers.ModelSerializer):
     items = OrdenItemSerializer(many=True, required=False)
     total = serializers.SerializerMethodField()
+    reporte = serializers.SerializerMethodField()
     paciente_nombre = serializers.CharField(
         source="paciente.nombre_completo", read_only=True, default=""
     )
@@ -241,12 +263,24 @@ class OrdenSerializer(serializers.ModelSerializer):
             "fecha",
             "items",
             "total",
+            "reporte",
         ]
         read_only_fields = ["numero", "fecha", "creado_por"]
 
     def get_total(self, obj):
         total = obj.calcular_total()
         return str(total) if total is not None else None
+
+    def get_reporte(self, obj):
+        reporte = getattr(obj, "reporte", None)
+        if reporte is None or not reporte.pdf:
+            return None
+        return {
+            "id": reporte.id,
+            "numero": reporte.numero,
+            "generado": reporte.generado.isoformat(),
+            "pdf_url": f"/api/reportes/{reporte.id}/pdf/",
+        }
 
     def validate(self, attrs):
         attrs = super().validate(attrs)

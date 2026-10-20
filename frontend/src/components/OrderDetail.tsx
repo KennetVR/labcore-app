@@ -30,6 +30,7 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
 
   const editable = order !== null && !closedStates.includes(order.estado)
   const canValidate = role === 'admin' || role === 'encargada'
+  const canReport = role === 'admin' || role === 'encargada' || role === 'reportes'
   const complete = order !== null && order.items.length > 0
     && order.items.every(item => (drafts[item.id]?.resultado ?? '').trim() !== '')
 
@@ -51,6 +52,16 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
         bandera: drafts[item.id]?.bandera ?? '',
       })),
     })
+  }
+
+  async function generateReport() {
+    if (!order) return
+    setBusy('reporte'); setError('')
+    try {
+      await api(`/ordenes/${order.id}/reporte/`, { method: 'POST', body: JSON.stringify({}) })
+      setRetry(n => n + 1)
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo generar el reporte.') }
+    finally { setBusy('') }
   }
 
   const updateDraft = (itemId: number, field: keyof Draft, value: string) =>
@@ -104,7 +115,11 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
         {editable ? <div className="form-actions">
           <button disabled={busy !== ''} onClick={saveResults}>{busy === 'resultados' ? 'Guardando…' : 'Guardar resultados'}</button>
           {canValidate && <button className="secondary" disabled={!complete || busy !== ''} onClick={() => send('validar')}>{busy === 'validar' ? 'Validando…' : 'Validar resultados'}</button>}
-        </div> : <p className="empty">La orden está {orderStates[order.estado]?.toLowerCase() ?? order.estado} y no admite cambios.</p>}
+        </div> : <p className="empty">La orden ya está cerrada y no admite cambios.</p>}
+        {(order.estado === 'validada' || order.reporte) && <div className="form-actions">
+          {order.estado === 'validada' && canReport && <button disabled={busy !== ''} onClick={generateReport}>{busy === 'reporte' ? 'Generando…' : 'Generar reporte'}</button>}
+          {order.reporte && <a className="button-link" href={order.reporte.pdf_url}>Descargar PDF {order.reporte.numero}</a>}
+        </div>}
       </section>
       <section className="panel detail-panel">
         <h2>Observación</h2>

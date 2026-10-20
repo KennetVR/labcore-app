@@ -60,6 +60,8 @@ button.link:hover:not(:disabled) { background: transparent; color: #08565b; }
 button.link.danger { color: #a2321f; }
 .result-input { width: 140px; }
 .flag-input { width: 80px; }
+.button-link { display: inline-block; padding: 11px 17px; border-radius: 8px; background: #116b70; color: white; text-decoration: none; font-weight: 600; }
+.button-link:hover { background: #08565b; }
 .form-panel fieldset > label { margin-top: 24px; }
 .quote-panel > button { display: block; width: 100%; margin: 12px 0; }
 .detail-panel { padding: 24px; margin-bottom: 20px; }
