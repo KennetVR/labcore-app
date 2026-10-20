@@ -26,21 +26,43 @@ El detalle de la orden incluye `reporte` con `id`, `numero`, `generado` y `pdf_u
 
 Se agregó `reportlab~=4.2` a `requirements.txt` para construir el PDF. El QR usa `qrcode` y `Pillow`, que ya estaban en el proyecto.
 
+## Entrega
+
+| Método | Ruta | Quién | Efecto |
+|---|---|---|---|
+| `POST` | `/api/ordenes/<id>/entrega/` | `admin`, `encargada`, `reportes` | Envía el PDF por correo (opcional) y registra la entrega |
+
+Cuerpo: `{ "enviado_a": "paciente@correo.com" }`. El correo es opcional: vacío registra una entrega en mano.
+
+Reglas:
+
+- Requiere un reporte generado y la orden en **PDF generado**; si no, devuelve `400`.
+- Con correo, envía el PDF adjunto como `<numero>.pdf`. Un correo inválido devuelve `400`.
+- Si el envío falla, responde `502` y **no** registra la entrega; la orden queda en **PDF generado** para reintentar.
+- La entrega es única y se apoya en `entregado_at`: repetirla devuelve `400` aunque alguien revierta el estado de la orden.
+- Un cuerpo que no sea un objeto JSON devuelve `400`.
+- Deja `enviado_a`, `entregado_at` y `entregado_por` en el reporte y pasa la orden a **Entregada**.
+- El detalle de la orden expone esos tres campos dentro de `reporte`.
+
+## Configuración de correo
+
+`EMAIL_BACKEND` (por defecto `django.core.mail.backends.console.EmailBackend`, que imprime el mensaje en consola) y `DEFAULT_FROM_EMAIL` (`reportes@labcore.local` por defecto). En producción se configuran por entorno.
+
 ## Límites conocidos
 
-- No hay envío por correo ni registro de entrega; los campos `enviado_a`, `entregado_at` y `entregado_por` del modelo quedan sin uso.
 - El QR codifica el número de reporte; no hay URL pública de verificación.
 - No se firma digitalmente el PDF.
 - Regenerar un reporte no actualiza su contenido: si cambian los datos, hay que borrar el reporte en administración antes de volver a generarlo.
+- No hay reintento automático de correo ni historial de envíos: cada entrega se registra una sola vez.
 
 ## Verificación
 
 ```bash
 cd backend
-..\.venv\Scripts\python.exe -m pytest tests/test_reports.py -q
+..\.venv\Scripts\python.exe -m pytest tests/test_reports.py tests/test_delivery.py -q
 
 cd ../qa/e2e
-npx playwright test tests/reports.spec.ts --reporter=line
+npx playwright test tests/reports.spec.ts tests/delivery.spec.ts --reporter=line
 ```
 
 Las pruebas de backend comprueban el contenido real del archivo (`%PDF`), la idempotencia, los permisos y la descarga.
