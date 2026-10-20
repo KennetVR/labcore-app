@@ -1,4 +1,6 @@
 from rest_framework import viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 from catalogo.models import Cliente, Examen, Paquete, Zona
 from ordenes.models import Orden
@@ -47,3 +49,9 @@ class OrdenViewSet(viewsets.ModelViewSet):
     queryset = Orden.objects.all()
     serializer_class = OrdenSerializer
     search_fields = ["numero", "paciente__dni", "paciente__apellidos"]
+
+    @action(detail=False, methods=["post"])
+    def cotizar(self, request):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response(serializer.quotation)
