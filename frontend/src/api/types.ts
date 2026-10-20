@@ -1,6 +1,6 @@
 export type User = { id: number; username: string; name: string; role: string }
 export type Session = { user: User | null; csrf_token: string }
-export type Patient = { id: number; nombre_completo: string; cliente: number | null }
+export type Patient = { id: number; dni: string | null; apellidos: string; nombres: string; sexo: string | null; fecha_nacimiento: string | null; cliente: number | null; observaciones: string; nombre_completo: string }
 export type Customer = { id: number; nombre: string }
 export type Exam = { id: number; codigo: string; nombre: string; activo: boolean }
 export type Package = { id: number; nombre: string; activo: boolean; examenes: { orden: number; examen: number }[] }

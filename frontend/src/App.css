@@ -11,7 +11,10 @@
 .sidebar { padding: 28px 20px; background: #123f4a; color: white; display: flex; flex-direction: column; }
 .brand { display: flex; align-items: center; gap: 12px; font-size: 1.3rem; margin-bottom: 42px; }
 .sidebar .eyebrow { color: #a0c7cc; }
-.sidebar nav button { width: 100%; text-align: left; background: #2d606b; }
+.sidebar nav { display: flex; flex-direction: column; gap: 6px; }
+.sidebar nav button { width: 100%; text-align: left; background: transparent; color: #d7e7e9; }
+.sidebar nav button:hover:not(:disabled) { background: #1c4b56; }
+.sidebar nav button.nav-active { background: #2d606b; color: white; }
 .sidebar-note { color: #accbd0; font-size: .8rem; margin-top: auto; padding-top: 40px; }
 .topbar { display: flex; align-items: center; gap: 24px; padding: 18px 32px; background: white; border-bottom: 1px solid #dce5e9; }
 .topbar > span { margin-right: auto; }
@@ -44,6 +47,7 @@ td:first-child { color: #116b70; }
 .order-line > div { flex: 1; }
 .order-line label { width: 80px; }
 .form-panel textarea { margin-bottom: 8px; }
+.form-actions { display: flex; gap: 12px; margin-top: 20px; }
 .form-panel fieldset > label { margin-top: 24px; }
 .quote-panel > button { display: block; width: 100%; margin: 12px 0; }
 .detail-panel { padding: 24px; margin-bottom: 20px; }
