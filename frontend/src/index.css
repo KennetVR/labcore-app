@@ -9,6 +9,8 @@ button.secondary { background: white; color: #315763; border-color: #cddce1; }
 button.secondary:hover:not(:disabled) { background: #eaf2f4; }
 :focus-visible { outline: 3px solid #d28b12; outline-offset: 3px; }
 label { display: flex; flex-direction: column; gap: 7px; font-size: .9rem; font-weight: 600; }
+label.check { flex-direction: row; align-items: center; gap: 10px; }
+label.check input { width: auto; min-height: auto; accent-color: #116b70; }
 input, select, textarea { width: 100%; min-height: 44px; background: white; color: #203b46; border: 1px solid #c6d4da; padding: 10px 12px; border-radius: 7px; }
 textarea { min-height: 90px; resize: vertical; }
 h1, h2, p { margin-top: 0; }
