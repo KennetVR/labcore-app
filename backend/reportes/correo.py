@@ -15,5 +15,6 @@ def enviar_reporte_por_correo(orden, reporte, destinatario):
     )
     with reporte.pdf.open("rb") as archivo:
         mensaje.attach(f"{reporte.numero}.pdf", archivo.read(), "application/pdf")
-    mensaje.send(fail_silently=False)
+    if mensaje.send(fail_silently=False) != 1:
+        raise OSError("Email backend did not accept the message")
     return mensaje

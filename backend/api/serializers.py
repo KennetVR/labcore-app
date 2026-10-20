@@ -14,7 +14,20 @@ from catalogo.models import (
 )
 from ordenes.models import Orden, OrdenItem
 from pacientes.models import Paciente
-from reportes.models import Reporte
+from reportes.models import EnvioReporte, Reporte
+
+
+class ReenvioSerializer(serializers.Serializer):
+    enviado_a = serializers.EmailField(max_length=254)
+    solicitud = serializers.UUIDField()
+
+
+class EnvioReporteSerializer(serializers.ModelSerializer):
+    usuario = serializers.CharField(source="usuario.username", read_only=True)
+
+    class Meta:
+        model = EnvioReporte
+        fields = ["id", "enviado_a", "usuario", "fecha", "estado", "reenvio"]
 
 
 class ZonaSerializer(serializers.ModelSerializer):

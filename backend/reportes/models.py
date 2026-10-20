@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.db import models
 from django.utils import timezone
+from uuid import uuid4
 
 from ordenes.models import Orden
 
@@ -42,3 +43,21 @@ class Reporte(models.Model):
 
     def __str__(self):
         return self.numero
+
+
+class EnvioReporte(models.Model):
+    class Estado(models.TextChoices):
+        PENDIENTE = "pendiente", "Pendiente"
+        ENVIADO = "enviado", "Aceptado por el servidor de correo"
+        FALLIDO = "fallido", "Fallido"
+
+    reporte = models.ForeignKey(Reporte, on_delete=models.CASCADE, related_name="envios")
+    solicitud = models.UUIDField(default=uuid4, unique=True, editable=False)
+    enviado_a = models.EmailField()
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    fecha = models.DateTimeField(auto_now_add=True)
+    estado = models.CharField(max_length=10, choices=Estado.choices, default=Estado.PENDIENTE)
+    reenvio = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-fecha", "-pk"]
