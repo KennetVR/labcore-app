@@ -3,7 +3,14 @@ from decimal import Decimal
 from django.db import transaction
 from rest_framework import serializers
 
-from catalogo.models import Cliente, Examen, Paquete, Zona
+from catalogo.models import (
+    Cliente,
+    Examen,
+    Paquete,
+    TarifarioExamen,
+    TarifarioPaquete,
+    Zona,
+)
 from ordenes.models import Orden, OrdenItem
 from pacientes.models import Paciente
 
@@ -50,6 +57,50 @@ class PaqueteSerializer(serializers.ModelSerializer):
         return [
             {"orden": pe.orden, "examen": pe.examen_id}
             for pe in obj.examenes_compuestos.all()
+        ]
+
+
+class TarifarioExamenSerializer(serializers.ModelSerializer):
+    examen_codigo = serializers.CharField(source="examen.codigo", read_only=True)
+    examen_nombre = serializers.CharField(source="examen.nombre", read_only=True)
+    zona_nombre = serializers.CharField(source="zona.nombre", read_only=True)
+    cliente_nombre = serializers.CharField(source="cliente.nombre", read_only=True)
+
+    class Meta:
+        model = TarifarioExamen
+        fields = [
+            "id",
+            "examen",
+            "examen_codigo",
+            "examen_nombre",
+            "precio",
+            "zona",
+            "zona_nombre",
+            "cliente",
+            "cliente_nombre",
+            "vigencia_desde",
+            "activo",
+        ]
+
+
+class TarifarioPaqueteSerializer(serializers.ModelSerializer):
+    paquete_nombre = serializers.CharField(source="paquete.nombre", read_only=True)
+    zona_nombre = serializers.CharField(source="zona.nombre", read_only=True)
+    cliente_nombre = serializers.CharField(source="cliente.nombre", read_only=True)
+
+    class Meta:
+        model = TarifarioPaquete
+        fields = [
+            "id",
+            "paquete",
+            "paquete_nombre",
+            "precio",
+            "zona",
+            "zona_nombre",
+            "cliente",
+            "cliente_nombre",
+            "vigencia_desde",
+            "activo",
         ]
 
 

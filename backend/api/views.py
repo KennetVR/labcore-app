@@ -2,7 +2,14 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from catalogo.models import Cliente, Examen, Paquete, Zona
+from catalogo.models import (
+    Cliente,
+    Examen,
+    Paquete,
+    TarifarioExamen,
+    TarifarioPaquete,
+    Zona,
+)
 from ordenes.models import Orden
 from pacientes.models import Paciente
 
@@ -12,6 +19,8 @@ from .serializers import (
     OrdenSerializer,
     PaqueteSerializer,
     PacienteSerializer,
+    TarifarioExamenSerializer,
+    TarifarioPaqueteSerializer,
     ZonaSerializer,
 )
 
@@ -43,6 +52,18 @@ class PacienteViewSet(viewsets.ModelViewSet):
     queryset = Paciente.objects.all()
     serializer_class = PacienteSerializer
     search_fields = ["dni", "apellidos", "nombres"]
+
+
+class TarifarioExamenViewSet(viewsets.ModelViewSet):
+    queryset = TarifarioExamen.objects.select_related("examen", "zona", "cliente")
+    serializer_class = TarifarioExamenSerializer
+    search_fields = ["examen__codigo", "examen__nombre"]
+
+
+class TarifarioPaqueteViewSet(viewsets.ModelViewSet):
+    queryset = TarifarioPaquete.objects.select_related("paquete", "zona", "cliente")
+    serializer_class = TarifarioPaqueteSerializer
+    search_fields = ["paquete__nombre"]
 
 
 class OrdenViewSet(viewsets.ModelViewSet):
