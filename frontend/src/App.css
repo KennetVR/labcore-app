@@ -48,6 +48,10 @@ td:first-child { color: #116b70; }
 .order-line label { width: 80px; }
 .form-panel textarea { margin-bottom: 8px; }
 .form-actions { display: flex; gap: 12px; margin-top: 20px; }
+.checks { display: flex; gap: 24px; margin-top: 8px; }
+.tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.tabs button { background: white; color: #315763; border-color: #cddce1; }
+.tabs button.nav-active { background: #116b70; color: white; border-color: transparent; }
 .form-panel fieldset > label { margin-top: 24px; }
 .quote-panel > button { display: block; width: 100%; margin: 12px 0; }
 .detail-panel { padding: 24px; margin-bottom: 20px; }
