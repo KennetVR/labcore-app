@@ -3,12 +3,14 @@ import type { FormEvent } from 'react'
 import { allPages, api, setCsrfToken } from './api/client'
 import type { Order, Session } from './api/types'
 import { money, orderStates } from './api/types'
+import Catalog from './components/Catalog'
+import Clients from './components/Clients'
 import OrderDetail from './components/OrderDetail'
 import OrderForm from './components/OrderForm'
 import Patients from './components/Patients'
 import './App.css'
 
-type View = { kind: 'list' } | { kind: 'form'; key: number } | { kind: 'detail'; id: number } | { kind: 'patients' }
+type View = { kind: 'list' } | { kind: 'form'; key: number } | { kind: 'detail'; id: number } | { kind: 'patients' } | { kind: 'clients' } | { kind: 'catalog' }
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
@@ -84,16 +86,21 @@ export default function App() {
 
   const visible = orders.filter(o => (!state || o.estado === state) && (!date || o.fecha === date)
     && `${o.numero} ${o.paciente_nombre} ${o.cliente_nombre}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()))
+  const ordersActive = view.kind === 'list' || view.kind === 'form' || view.kind === 'detail'
   return <div className="workspace">
     <aside className="sidebar"><div className="brand"><span className="brand-mark">LC</span><strong>LabCore</strong></div>
       <p className="eyebrow">LABORATORIO CLÍNICO</p><nav aria-label="Principal">
-        <button className={view.kind === 'patients' ? '' : 'nav-active'} onClick={() => setView({ kind: 'list' })}>Órdenes</button>
+        <button className={ordersActive ? 'nav-active' : ''} onClick={() => setView({ kind: 'list' })}>Órdenes</button>
         <button className={view.kind === 'patients' ? 'nav-active' : ''} onClick={() => setView({ kind: 'patients' })}>Pacientes</button>
+        <button className={view.kind === 'clients' ? 'nav-active' : ''} onClick={() => setView({ kind: 'clients' })}>Clientes</button>
+        <button className={view.kind === 'catalog' ? 'nav-active' : ''} onClick={() => setView({ kind: 'catalog' })}>Catálogo</button>
       </nav>
       <p className="sidebar-note">Espacio de trabajo<br />Recepción y laboratorio</p></aside>
     <div className="workspace-main"><header className="topbar"><span>Gestión de órdenes</span><div><strong>{session.user.name}</strong><small>{session.user.role}</small></div><button className="secondary" disabled={busy} onClick={logout}>Cerrar sesión</button></header>
       <main className="content">{error && <div role="alert" className="error">{error} <button className="secondary" onClick={() => { setError(''); refresh(n => n + 1) }}>Reintentar</button></div>}
-        {view.kind === 'patients' ? <Patients />
+        {view.kind === 'catalog' ? <Catalog />
+          : view.kind === 'clients' ? <Clients />
+          : view.kind === 'patients' ? <Patients />
           : view.kind === 'form' ? <OrderForm key={view.key} onCancel={() => setView({ kind: 'list' })}
           onSaved={() => { setView(current => current.kind === 'form' && current.key === view.key ? { kind: 'list' } : current); refresh(n => n + 1) }} />
           : view.kind === 'detail' ? <OrderDetail key={view.id} id={view.id} onBack={() => setView({ kind: 'list' })} />
