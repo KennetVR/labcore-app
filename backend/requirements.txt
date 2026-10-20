@@ -5,5 +5,6 @@ qrcode
 python-dotenv
 djangorestframework
 django-cors-headers
+reportlab~=4.2
 pytest
 pytest-django
