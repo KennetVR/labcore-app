@@ -13,7 +13,7 @@ Branch: `feature/order-workspace`; route: inline; delivery: feature-branch-chain
 - T2 [S2,S3,S4] inline — done — commit `d38a479`; 22 backend tests; assess `medium`, `under_budget`.
 - T3 [S1,S2,S3] inline — done — commit `1c26649`; build, lint and 3 Playwright tests passed; assess `medium`, `under_budget`.
 - T4 [S1–S4] inline — done — commit `6df2b6c`; independent verifier found B1 (pending save discarded a newer draft) and B2 (unrelated exam accepted for a package); both corrected with regressions and rechecked.
-- T5 [S1] inline — done — order detail view after local testing; read-only item names in the API, detail screen, browser regression; commit pending.
+- T5 [S1] inline — done — commit `8038e37`; order detail view after local testing; read-only item names in the API, detail screen, browser regression.
 
 ## Log
 - L1: Original implementation request: "Ok arranquemos lo que recomiendas". Later authorizations: "Si", "OK", "Continua", "Continua".
