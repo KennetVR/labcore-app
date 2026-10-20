@@ -44,6 +44,21 @@ Reglas:
 - Deja `enviado_a`, `entregado_at` y `entregado_por` en el reporte y pasa la orden a **Entregada**.
 - El detalle de la orden expone esos tres campos dentro de `reporte`.
 
+## Reenvío y historial de envíos
+
+| Método | Ruta | Quién | Efecto |
+|---|---|---|---|
+| `POST` | `/api/ordenes/<id>/reenviar/` | `admin`, `encargada`, `reportes` | Reenvía el PDF a un correo (o registra reenvío en mano) |
+| `GET` | `/api/ordenes/<id>/envios/` | `admin`, `encargada`, `reportes` | Lista el historial de envíos (paginado) |
+
+Cuerpo del reenvío: `{ "enviado_a": "otro@correo.com", "solicitud": "<uuid>" }`. El campo `solicitud` es obligatorio y garantiza idempotencia: repetir la misma `solicitud` no envía dos veces; cambiar el correo en una `solicitud` ya usada devuelve `409`. El correo es opcional: vacío registra un reenvío en mano.
+
+Reglas:
+- Requiere que la orden ya tenga una primera entrega registrada (`entregado_at` no nulo); si no, `400`.
+- Cada reenvío crea un registro en `EnvioReporte` con destinatario, usuario, fecha, estado (`pendiente` → `enviado`/`fallido`) y marca `reenvio=true`.
+- Si el envío SMTP falla, el registro queda en `fallido` y la primera entrega no se altera; la orden permanece en **Entregada**.
+- El historial está paginado y expone `enviado_a`, `usuario`, `fecha`, `estado`, `reenvio`.
+
 ## Configuración de correo
 
 `EMAIL_BACKEND` (por defecto `django.core.mail.backends.console.EmailBackend`, que imprime el mensaje en consola) y `DEFAULT_FROM_EMAIL` (`reportes@labcore.local` por defecto). En producción se configuran por entorno.
@@ -65,16 +80,16 @@ Configure `REPORT_VERIFICATION_BASE_URL` con la URL pública HTTPS del backend, 
 
 - No se firma digitalmente el PDF.
 - Regenerar un reporte no actualiza su contenido: si cambian los datos, hay que borrar el reporte en administración antes de volver a generarlo.
-- No hay reintento automático de correo ni historial de envíos: cada entrega se registra una sola vez.
+- El reenvío fallido no se reintenta automáticamente; se registra como `fallido` en el historial.
 
 ## Verificación
 
 ```bash
 cd backend
-..\.venv\Scripts\python.exe -m pytest tests/test_reports.py tests/test_delivery.py tests/test_verification.py -q
+..\.venv\Scripts\python.exe -m pytest tests/test_reports.py tests/test_delivery.py tests/test_verification.py tests/test_resends.py -q
 
 cd ../qa/e2e
-npx playwright test tests/reports.spec.ts tests/delivery.spec.ts --reporter=line
+npx playwright test tests/reports.spec.ts tests/delivery.spec.ts tests/resends.spec.ts --reporter=line
 ```
 
 Las pruebas de backend comprueban el contenido real del archivo (`%PDF`), la idempotencia, los permisos y la descarga.

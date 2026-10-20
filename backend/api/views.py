@@ -19,10 +19,12 @@ from catalogo.models import (
 from ordenes.models import Orden
 from pacientes.models import Paciente
 from reportes.correo import enviar_reporte_por_correo
-from reportes.models import Reporte
+from reportes.models import EnvioReporte, Reporte
 from reportes.pdf import generar_pdf
 
 from .serializers import (
+    EnvioReporteSerializer,
+    ReenvioSerializer,
     ClienteSerializer,
     ExamenSerializer,
     OrdenSerializer,
@@ -33,6 +35,18 @@ from .serializers import (
     TarifarioPaqueteSerializer,
     ZonaSerializer,
 )
+
+
+def enviar_con_historial(orden, reporte, evento):
+    try:
+        enviar_reporte_por_correo(orden, reporte, evento.enviado_a)
+    except Exception:
+        evento.estado = EnvioReporte.Estado.FALLIDO
+        evento.save(update_fields=["estado"])
+        return False
+    evento.estado = EnvioReporte.Estado.ENVIADO
+    evento.save(update_fields=["estado"])
+    return True
 
 
 class ProtectedDestroyMixin:
@@ -278,9 +292,10 @@ class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
                     {"enviado_a": ["Ingrese un correo válido."]},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            try:
-                enviar_reporte_por_correo(orden, reporte, enviado_a)
-            except Exception:
+            evento = EnvioReporte.objects.create(
+                reporte=reporte, enviado_a=enviado_a, usuario=request.user
+            )
+            if not enviar_con_historial(orden, reporte, evento):
                 return Response(
                     {"detail": "No se pudo enviar el correo del reporte."},
                     status=status.HTTP_502_BAD_GATEWAY,
@@ -292,6 +307,47 @@ class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
         orden.estado = Orden.Estado.ENTREGADA
         orden.save(update_fields=["estado"])
         return Response(self.get_serializer(orden).data)
+
+
+    @action(detail=True, methods=["get"])
+    def envios(self, request, pk=None):
+        if getattr(request.user, "rol", "") not in ("admin", "encargada", "reportes"):
+            return Response({"detail": "No tiene permiso para consultar envíos."}, status=403)
+        orden = self.get_object()
+        eventos = EnvioReporte.objects.filter(reporte__orden=orden).select_related("usuario")
+        page = self.paginate_queryset(eventos)
+        return self.get_paginated_response(EnvioReporteSerializer(page, many=True).data)
+
+    @action(detail=True, methods=["post"])
+    def reenviar(self, request, pk=None):
+        if getattr(request.user, "rol", "") not in ("admin", "encargada", "reportes"):
+            return Response({"detail": "No tiene permiso para reenviar reportes."}, status=403)
+        orden = self.get_object()
+        reporte = getattr(orden, "reporte", None)
+        if reporte is None or not reporte.pdf or reporte.entregado_at is None:
+            return Response({"detail": "Registre la primera entrega antes de reenviar."}, status=400)
+        datos = ReenvioSerializer(data=request.data)
+        datos.is_valid(raise_exception=True)
+        evento, created = EnvioReporte.objects.get_or_create(
+            solicitud=datos.validated_data["solicitud"],
+            defaults={
+                "reporte": reporte, "usuario": request.user, "reenvio": True,
+                "enviado_a": datos.validated_data["enviado_a"],
+            },
+        )
+        if not created:
+            if (
+                evento.reporte_id != reporte.pk
+                or evento.usuario_id != request.user.pk
+                or evento.enviado_a != datos.validated_data["enviado_a"]
+                or not evento.reenvio
+                or evento.estado != EnvioReporte.Estado.ENVIADO
+            ):
+                return Response({"detail": "La solicitud ya fue utilizada; revise el historial."}, status=409)
+            return Response(EnvioReporteSerializer(evento).data)
+        if not enviar_con_historial(orden, reporte, evento):
+            return Response({"detail": "No se pudo enviar el correo del reporte."}, status=502)
+        return Response(EnvioReporteSerializer(evento).data, status=201)
 
 
 class ReporteViewSet(viewsets.ReadOnlyModelViewSet):

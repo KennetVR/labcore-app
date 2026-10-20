@@ -11,6 +11,7 @@ export type OrderReport = { id: number; numero: string; generado: string; pdf_ur
 export type Order = { id: number; numero: string; paciente_nombre: string; cliente_nombre: string; fecha: string; estado: string; total: string | null }
 export type OrderItem = { id: number; examen: number; examen_codigo: string; examen_nombre: string; paquete: number | null; paquete_nombre: string; cantidad: number; medicion: string; resultado: string; bandera: string; validado_por: number | null; validado_at: string | null }
 export type OrderDetail = Order & { observacion: string; solicitado_por: string; items: OrderItem[]; reporte: OrderReport | null }
+export type EnvioReporte = { id: number; enviado_a: string; usuario: string; fecha: string; estado: 'pendiente' | 'enviado' | 'fallido'; reenvio: boolean }
 export type Item = { examen: number; paquete?: number; cantidad: number; medicion: string }
 export type Quote = { items: { precio_unitario: string; subtotal: string }[]; total: string }
 export const money = (value: string) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(Number(value))
