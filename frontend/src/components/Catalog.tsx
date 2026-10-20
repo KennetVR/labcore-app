@@ -61,6 +61,49 @@ function ExamForm({ onCancel, onSaved }: { onCancel: () => void; onSaved: () => 
   </form>
 }
 
+function PackageForm({ exams, onCancel, onSaved }: { exams: Exam[]; onCancel: () => void; onSaved: () => void }) {
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const data = new FormData(event.currentTarget)
+    const text = (name: string) => String(data.get(name) ?? '').trim()
+    const selected = data.getAll('examen').map(value => Number(value))
+    if (selected.length === 0) { setError('Elegí al menos un examen para el paquete.'); return }
+    const payload = {
+      nombre: text('nombre'),
+      frecuencia: text('frecuencia') || 'mensual',
+      activo: data.get('activo') === 'on',
+      examenes: selected.map((exam, index) => ({ examen: exam, orden: index })),
+    }
+    setBusy(true); setError('')
+    try {
+      await api('/paquetes/', { method: 'POST', body: JSON.stringify(payload) })
+      onSaved()
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo guardar el paquete.') }
+    finally { setBusy(false) }
+  }
+
+  return <form className="panel form-panel" onSubmit={submit}>
+    <h2>Datos del paquete</h2>
+    <div className="field-grid">
+      <label>Nombre<input name="nombre" required maxLength={100} /></label>
+      <label>Frecuencia<select name="frecuencia" defaultValue="mensual">{Object.entries(frequencies).map(([key, title]) => <option key={key} value={key}>{title}</option>)}</select></label>
+    </div>
+    <fieldset className="member-picker">
+      <legend>Exámenes del paquete</legend>
+      {exams.map(e => <label key={e.id} className="check"><input type="checkbox" name="examen" value={e.id} /> {e.codigo} - {e.nombre}</label>)}
+    </fieldset>
+    <label className="check"><input type="checkbox" name="activo" defaultChecked /> Paquete activo</label>
+    {error && <p role="alert" className="error">{error}</p>}
+    <div className="form-actions">
+      <button disabled={busy}>{busy ? 'Guardando…' : 'Guardar paquete'}</button>
+      <button type="button" className="secondary" disabled={busy} onClick={onCancel}>Cancelar</button>
+    </div>
+  </form>
+}
+
 export default function Catalog() {
   const [exams, setExams] = useState<Exam[]>([])
   const [packages, setPackages] = useState<Package[]>([])
@@ -68,7 +111,7 @@ export default function Catalog() {
   const [error, setError] = useState('')
   const [query, setQuery] = useState('')
   const [tab, setTab] = useState<'exams' | 'packages'>('exams')
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState<null | 'exams' | 'packages'>(null)
   const [revision, refresh] = useState(0)
   useEffect(() => {
     const controller = new AbortController()
@@ -85,9 +128,11 @@ export default function Catalog() {
 
   return <>
     <div className="page-heading"><div><p className="eyebrow">CATÁLOGO</p><h1>Catálogo</h1><p>Exámenes y paquetes disponibles para las órdenes.</p></div>
-      {tab === 'exams' && !open && <button onClick={() => setOpen(true)}>Nuevo examen</button>}</div>
+      {!open && <button onClick={() => setOpen(tab)}>{tab === 'exams' ? 'Nuevo examen' : 'Nuevo paquete'}</button>}</div>
     {error && <div className="error" role="alert">{error} <button className="secondary" onClick={() => { setError(''); refresh(n => n + 1) }}>Reintentar</button></div>}
-    {open ? <ExamForm onCancel={() => setOpen(false)} onSaved={() => { setOpen(false); refresh(n => n + 1) }} /> : <>
+    {open === 'exams' ? <ExamForm onCancel={() => setOpen(null)} onSaved={() => { setOpen(null); refresh(n => n + 1) }} />
+      : open === 'packages' ? <PackageForm exams={exams} onCancel={() => setOpen(null)} onSaved={() => { setOpen(null); refresh(n => n + 1) }} />
+      : <>
       <div className="tabs" role="tablist">
         <button role="tab" aria-selected={tab === 'exams'} className={tab === 'exams' ? 'nav-active' : ''} onClick={() => setTab('exams')}>Exámenes</button>
         <button role="tab" aria-selected={tab === 'packages'} className={tab === 'packages' ? 'nav-active' : ''} onClick={() => setTab('packages')}>Paquetes</button>

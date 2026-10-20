@@ -7,6 +7,7 @@ from catalogo.models import (
     Cliente,
     Examen,
     Paquete,
+    PaqueteExamen,
     TarifarioExamen,
     TarifarioPaquete,
     Zona,
@@ -46,18 +47,77 @@ class ExamenSerializer(serializers.ModelSerializer):
         ]
 
 
+class PaqueteExamenesField(serializers.Field):
+    def to_representation(self, value):
+        return [
+            {"orden": pe.orden, "examen": pe.examen_id}
+            for pe in value.all()
+        ]
+
+    def to_internal_value(self, data):
+        if not isinstance(data, list):
+            raise serializers.ValidationError("Se esperaba una lista de exámenes.")
+        members = []
+        for index, entry in enumerate(data):
+            if isinstance(entry, dict):
+                exam_id = entry.get("examen")
+                orden = entry.get("orden", index)
+            else:
+                exam_id, orden = entry, index
+            if isinstance(exam_id, bool) or not isinstance(exam_id, int):
+                raise serializers.ValidationError(
+                    "Cada examen debe indicar su id numérico."
+                )
+            if isinstance(orden, bool) or not isinstance(orden, int) or orden < 0:
+                raise serializers.ValidationError(
+                    "El orden de cada examen debe ser un entero no negativo."
+                )
+            members.append((exam_id, orden))
+        exam_ids = [exam_id for exam_id, _ in members]
+        if len(set(exam_ids)) != len(exam_ids):
+            raise serializers.ValidationError(
+                "No se puede repetir un examen en el paquete."
+            )
+        existentes = set(
+            Examen.objects.filter(id__in=exam_ids).values_list("id", flat=True)
+        )
+        faltantes = [exam_id for exam_id in exam_ids if exam_id not in existentes]
+        if faltantes:
+            raise serializers.ValidationError(f"Exámenes inexistentes: {faltantes}.")
+        return members
+
+
 class PaqueteSerializer(serializers.ModelSerializer):
-    examenes = serializers.SerializerMethodField()
+    examenes = PaqueteExamenesField(source="examenes_compuestos", required=False)
 
     class Meta:
         model = Paquete
         fields = ["id", "nombre", "frecuencia", "activo", "examenes"]
 
-    def get_examenes(self, obj):
-        return [
-            {"orden": pe.orden, "examen": pe.examen_id}
-            for pe in obj.examenes_compuestos.all()
-        ]
+    def _sync_miembros(self, paquete, members):
+        paquete.examenes_compuestos.all().delete()
+        PaqueteExamen.objects.bulk_create(
+            [
+                PaqueteExamen(paquete=paquete, examen_id=exam_id, orden=orden)
+                for exam_id, orden in members
+            ]
+        )
+
+    def create(self, validated_data):
+        members = validated_data.pop("examenes_compuestos", None)
+        with transaction.atomic():
+            paquete = super().create(validated_data)
+            if members is not None:
+                self._sync_miembros(paquete, members)
+        return paquete
+
+    def update(self, instance, validated_data):
+        members = validated_data.pop("examenes_compuestos", None)
+        with transaction.atomic():
+            paquete = super().update(instance, validated_data)
+            if members is not None:
+                self._sync_miembros(paquete, members)
+        return paquete
 
 
 class TarifarioExamenSerializer(serializers.ModelSerializer):

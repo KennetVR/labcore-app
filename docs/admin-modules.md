@@ -9,7 +9,7 @@ Pantallas de gestión que acompañan al espacio de órdenes: clientes, catálogo
 | Pacientes | Sí, con búsqueda por nombre o DNI | Sí | No |
 | Clientes | Sí, con búsqueda por nombre o contacto | Sí | No |
 | Catálogo · Exámenes | Sí, con búsqueda por código o nombre | Sí | No |
-| Catálogo · Paquetes | Sí, con recuento de exámenes | No | No |
+| Catálogo · Paquetes | Sí, con recuento de exámenes | Sí, con selección de exámenes | No |
 | Tarifarios · Exámenes | Sí, con búsqueda | Sí | No |
 | Tarifarios · Paquetes | Sí, con búsqueda | Sí | No |
 
@@ -17,7 +17,7 @@ Las altas usan los endpoints existentes del CRUD (`/api/pacientes/`, `/api/clien
 
 ## Límites conocidos
 
-- **Paquetes**: la API expone los exámenes de un paquete como solo lectura. Crear o modificar la composición requiere un cambio de backend pendiente; hasta entonces la pantalla solo lista.
+- **Paquetes**: el alta envía la composición completa en una sola petición y el backend la guarda de forma atómica. La lista de exámenes define el orden de visualización; un examen repetido o inexistente devuelve `400`. La edición de la composición existe en la API (`PATCH /api/paquetes/<id>/` con `examenes`), pero todavía no está expuesta en la interfaz.
 - **Tarifarios**: las tarifas se agregan pero no se editan ni se dan de baja desde la interfaz. Una tarifa nueva participa en la cotización de órdenes posteriores; las órdenes ya guardadas recalculan su total con las tarifas vigentes, porque el precio no se congela por ítem.
 - **Clientes y pacientes**: la edición y la baja tampoco están expuestas en la interfaz.
 
