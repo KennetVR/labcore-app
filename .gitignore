@@ -46,3 +46,5 @@ exports/
 
 # Instrucciones locales por worktree (no se versionan)
 AGENTS.md
+# Archivos generados por la aplicación (reportes PDF)
+backend/media/

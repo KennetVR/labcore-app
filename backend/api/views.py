@@ -1,3 +1,5 @@
+from django.core.exceptions import ValidationError
+from django.core.validators import validate_email
 from django.db import transaction
 from django.db.models import ProtectedError
 from django.http import FileResponse
@@ -16,6 +18,7 @@ from catalogo.models import (
 )
 from ordenes.models import Orden
 from pacientes.models import Paciente
+from reportes.correo import enviar_reporte_por_correo
 from reportes.models import Reporte
 from reportes.pdf import generar_pdf
 
@@ -235,6 +238,60 @@ class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
             },
             status=status.HTTP_201_CREATED,
         )
+
+    @action(detail=True, methods=["post"])
+    def entrega(self, request, pk=None):
+        if getattr(request.user, "rol", "") not in ("admin", "encargada", "reportes"):
+            return Response(
+                {"detail": "No tiene permiso para registrar entregas."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        orden = self.get_object()
+        reporte = getattr(orden, "reporte", None)
+        if reporte is None or not reporte.pdf:
+            return Response(
+                {"detail": "Genere el reporte antes de registrar la entrega."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if reporte.entregado_at is not None or orden.estado == Orden.Estado.ENTREGADA:
+            return Response(
+                {"detail": "La orden ya fue entregada."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if orden.estado != Orden.Estado.PDF:
+            return Response(
+                {"detail": "Solo se entrega una orden con reporte generado."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        datos = request.data
+        if not isinstance(datos, dict):
+            return Response(
+                {"detail": "Se esperaba un objeto JSON."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        enviado_a = str(datos.get("enviado_a", "")).strip()
+        if enviado_a:
+            try:
+                validate_email(enviado_a)
+            except ValidationError:
+                return Response(
+                    {"enviado_a": ["Ingrese un correo válido."]},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            try:
+                enviar_reporte_por_correo(orden, reporte, enviado_a)
+            except Exception:
+                return Response(
+                    {"detail": "No se pudo enviar el correo del reporte."},
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+        reporte.enviado_a = enviado_a
+        reporte.entregado_at = timezone.now()
+        reporte.entregado_por = request.user
+        reporte.save(update_fields=["enviado_a", "entregado_at", "entregado_por"])
+        orden.estado = Orden.Estado.ENTREGADA
+        orden.save(update_fields=["estado"])
+        return Response(self.get_serializer(orden).data)
 
 
 class ReporteViewSet(viewsets.ReadOnlyModelViewSet):

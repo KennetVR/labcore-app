@@ -168,6 +168,7 @@ class TarifarioPaqueteSerializer(serializers.ModelSerializer):
 class ReporteSerializer(serializers.ModelSerializer):
     orden_numero = serializers.CharField(source="orden.numero", read_only=True)
     pdf_url = serializers.SerializerMethodField()
+    entregado_por_nombre = serializers.SerializerMethodField()
 
     class Meta:
         model = Reporte
@@ -179,10 +180,19 @@ class ReporteSerializer(serializers.ModelSerializer):
             "generado",
             "codigo_qr",
             "pdf_url",
+            "enviado_a",
+            "entregado_at",
+            "entregado_por",
+            "entregado_por_nombre",
         ]
 
     def get_pdf_url(self, obj):
         return f"/api/reportes/{obj.id}/pdf/" if obj.pdf else None
+
+    def get_entregado_por_nombre(self, obj):
+        if obj.entregado_por is None:
+            return None
+        return obj.entregado_por.get_full_name() or obj.entregado_por.username
 
 
 class PacienteSerializer(serializers.ModelSerializer):
@@ -280,6 +290,16 @@ class OrdenSerializer(serializers.ModelSerializer):
             "numero": reporte.numero,
             "generado": reporte.generado.isoformat(),
             "pdf_url": f"/api/reportes/{reporte.id}/pdf/",
+            "enviado_a": reporte.enviado_a,
+            "entregado_at": (
+                reporte.entregado_at.isoformat() if reporte.entregado_at else None
+            ),
+            "entregado_por": (
+                reporte.entregado_por.get_full_name()
+                or reporte.entregado_por.username
+                if reporte.entregado_por
+                else None
+            ),
         }
 
     def validate(self, attrs):

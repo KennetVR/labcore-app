@@ -10,6 +10,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from .verification import verification_url
 
 
 def _qr(data, temporales):
@@ -88,7 +89,7 @@ def generar_pdf(orden, reporte):
             estilos["Normal"],
         ),
         Spacer(1, 6 * mm),
-        _qr(f"LabCore {reporte.numero} | Orden {orden.numero}", temporales),
+        _qr(verification_url(reporte), temporales),
         Spacer(1, 3 * mm),
         Paragraph(
             "Documento generado por LabCore. Verifique la autenticidad con el código QR.",

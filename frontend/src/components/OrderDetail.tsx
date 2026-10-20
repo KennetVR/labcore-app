@@ -11,6 +11,7 @@ type Draft = { resultado: string; bandera: string }
 export default function OrderDetail({ id, role, onBack }: { id: number; role: string; onBack: () => void }) {
   const [order, setOrder] = useState<Order | null>(null)
   const [drafts, setDrafts] = useState<Record<number, Draft>>({})
+  const [email, setEmail] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState('')
   const [retry, setRetry] = useState(0)
@@ -61,6 +62,17 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
       await api(`/ordenes/${order.id}/reporte/`, { method: 'POST', body: JSON.stringify({}) })
       setRetry(n => n + 1)
     } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo generar el reporte.') }
+    finally { setBusy('') }
+  }
+
+  async function registerDelivery() {
+    if (!order) return
+    setBusy('entrega'); setError('')
+    try {
+      load(await api<Order>(`/ordenes/${order.id}/entrega/`, {
+        method: 'POST', body: JSON.stringify({ enviado_a: email.trim() }),
+      }))
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo registrar la entrega.') }
     finally { setBusy('') }
   }
 
@@ -121,6 +133,24 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
           {order.reporte && <a className="button-link" href={order.reporte.pdf_url}>Descargar PDF {order.reporte.numero}</a>}
         </div>}
       </section>
+      {(order.estado === 'pdf' && order.reporte && canReport) || order.estado === 'entregada' ? <section className="panel detail-panel">
+        <h2>Entrega</h2>
+        {order.estado === 'entregada' ? <p>
+          Entregada{order.reporte?.entregado_at ? ` el ${new Date(order.reporte.entregado_at).toLocaleString('es-PE')}` : ''}
+          {order.reporte?.enviado_a ? ` por correo a ${order.reporte.enviado_a}` : ' en mano'}
+          {order.reporte?.entregado_por ? ` · registrada por ${order.reporte.entregado_por}` : ''}.
+        </p> : <>
+          <p>Envíe el informe por correo o registre la entrega en mano.</p>
+          <div className="delivery-form">
+            <label>Correo de entrega (opcional)
+              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="paciente@correo.com" />
+            </label>
+            <button disabled={busy !== ''} onClick={registerDelivery}>
+              {busy === 'entrega' ? 'Registrando…' : email.trim() ? 'Enviar y entregar' : 'Registrar entrega'}
+            </button>
+          </div>
+        </>}
+      </section> : null}
       <section className="panel detail-panel">
         <h2>Observación</h2>
         <p>{order.observacion || 'Sin observaciones.'}</p>

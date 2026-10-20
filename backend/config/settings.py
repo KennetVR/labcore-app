@@ -98,6 +98,14 @@ STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
+REPORT_VERIFICATION_BASE_URL = os.getenv(
+    "REPORT_VERIFICATION_BASE_URL", "http://localhost:8000"
+)
+
+EMAIL_BACKEND = os.getenv(
+    "EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend"
+)
+DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "reportes@labcore.local")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
