@@ -58,6 +58,8 @@ td:first-child { color: #116b70; }
 button.link { background: transparent; color: #116b70; border: 0; padding: 4px 6px; text-decoration: underline; }
 button.link:hover:not(:disabled) { background: transparent; color: #08565b; }
 button.link.danger { color: #a2321f; }
+.result-input { width: 140px; }
+.flag-input { width: 80px; }
 .form-panel fieldset > label { margin-top: 24px; }
 .quote-panel > button { display: block; width: 100%; margin: 12px 0; }
 .detail-panel { padding: 24px; margin-bottom: 20px; }

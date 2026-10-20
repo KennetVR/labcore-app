@@ -106,7 +106,7 @@ export default function App() {
           : view.kind === 'patients' ? <Patients />
           : view.kind === 'form' ? <OrderForm key={view.key} onCancel={() => setView({ kind: 'list' })}
           onSaved={() => { setView(current => current.kind === 'form' && current.key === view.key ? { kind: 'list' } : current); refresh(n => n + 1) }} />
-          : view.kind === 'detail' ? <OrderDetail key={view.id} id={view.id} onBack={() => setView({ kind: 'list' })} />
+          : view.kind === 'detail' ? <OrderDetail key={view.id} id={view.id} role={session.user.role} onBack={() => setView({ kind: 'list' })} />
           : <>
           <div className="page-heading"><div><p className="eyebrow">RECEPCIÓN</p><h1>Órdenes de laboratorio</h1><p>Consulte el estado y registre nuevas solicitudes.</p></div><button onClick={() => setView({ kind: 'form', key: ++nextDraft.current })}>Nueva orden</button></div>
           <div className="stats"><article><span>Órdenes registradas</span><strong>{orders.length}</strong></article><article><span>Pendientes de iniciar</span><strong>{orders.filter(o => o.estado === 'registrada').length}</strong></article><article><span>Sin total disponible</span><strong>{orders.filter(o => o.total === null).length}</strong></article></div>
