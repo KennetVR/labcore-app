@@ -27,9 +27,11 @@ npx playwright install chromium
 npx playwright test            # inicia el frontend y corre las pruebas
 ```
 
-- Config: `qa/e2e/playwright.config.ts` (baseURL `http://localhost:5173`, inicia
+- Config: `qa/e2e/playwright.config.ts` (baseURL `http://localhost:5174`, inicia
   `npm run dev` del frontend automáticamente).
-- Para E2E que use la API, levantar antes el backend:
+- `tests/orders.spec.ts` y `tests/pending-save.spec.ts` interceptan `/api/` y no
+  necesitan backend ni datos demo; `tests/home.spec.ts` solo verifica la pantalla inicial.
+- Para E2E que use la API real, levantar antes el backend:
   `cd backend` → `python manage.py runserver` y usar datos de prueba.
 
 ## Checklist de QA
