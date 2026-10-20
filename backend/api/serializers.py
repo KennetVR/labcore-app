@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+from django.db import transaction
 from rest_framework import serializers
 
 from catalogo.models import Cliente, Examen, Paquete, Zona
@@ -74,6 +77,12 @@ class OrdenItemSerializer(serializers.ModelSerializer):
         queryset=Paquete.objects.all(), allow_null=True, required=False
     )
 
+    def validate(self, attrs):
+        paquete = attrs.get("paquete")
+        if paquete and not paquete.examenes_compuestos.filter(examen=attrs["examen"]).exists():
+            raise serializers.ValidationError({"examen": "El examen no pertenece al paquete seleccionado."})
+        return attrs
+
     class Meta:
         model = OrdenItem
         fields = [
@@ -117,8 +126,42 @@ class OrdenSerializer(serializers.ModelSerializer):
         read_only_fields = ["numero", "fecha", "creado_por"]
 
     def get_total(self, obj):
-        return str(obj.calcular_total())
+        total = obj.calcular_total()
+        return str(total) if total is not None else None
 
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        self.quotation = self.quote(attrs)
+        return attrs
+
+    def quote(self, attrs):
+        items = attrs.get("items", [])
+        cliente = attrs.get("cliente", self.instance.cliente if self.instance else None)
+        orden = Orden(cliente=cliente)
+        if self.instance:
+            orden.fecha = self.instance.fecha
+        errores = []
+        lines = []
+        total = Decimal("0.00")
+
+        for item in items:
+            paquete = item.get("paquete")
+            examen = item["examen"]
+            precio = orden._tarifa(paquete=paquete) if paquete else orden._tarifa(examen=examen)
+            if precio is None:
+                recurso = f"el paquete {paquete.nombre}" if paquete else f"el examen {examen.codigo}"
+                errores.append(f"No hay una tarifa vigente para {recurso}.")
+            else:
+                errores.append({})
+                subtotal = (precio * item.get("cantidad", 1)).quantize(Decimal("0.01"))
+                lines.append({"precio_unitario": str(precio), "subtotal": str(subtotal)})
+                total += subtotal
+
+        if any(errores):
+            raise serializers.ValidationError({"items": errores})
+        return {"items": lines, "total": str(total)}
+
+    @transaction.atomic
     def create(self, validated_data):
         items = validated_data.pop("items", [])
         orden = Orden.objects.create(**validated_data)

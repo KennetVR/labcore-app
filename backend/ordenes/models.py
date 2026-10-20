@@ -54,18 +54,22 @@ class Orden(models.Model):
             if self.cliente_id and t.cliente_id == self.cliente_id:
                 return t.precio
             if t.cliente_id is None and (
-                t.zona_id is None or self.cliente is None or t.zona_id == self.cliente.zona_id
+                t.zona_id is None
+                or (self.cliente is not None and t.zona_id == self.cliente.zona_id)
             ):
                 candidatas.append(t.precio)
-        return candidatas[-1] if candidatas else Decimal("0")
+        return candidatas[-1] if candidatas else None
 
     def calcular_total(self):
         total = Decimal("0")
         for item in self.items.all():
             if item.paquete:
-                total += self._tarifa(paquete=item.paquete) * item.cantidad
+                precio = self._tarifa(paquete=item.paquete)
             else:
-                total += self._tarifa(examen=item.examen) * item.cantidad
+                precio = self._tarifa(examen=item.examen)
+            if precio is None:
+                return None
+            total += precio * item.cantidad
         return total.quantize(Decimal("0.01"))
 
     def __str__(self):
