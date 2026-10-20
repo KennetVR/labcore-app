@@ -54,6 +54,10 @@ td:first-child { color: #116b70; }
 .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
 .tabs button { background: white; color: #315763; border-color: #cddce1; }
 .tabs button.nav-active { background: #116b70; color: white; border-color: transparent; }
+.row-actions { white-space: nowrap; text-align: right; }
+button.link { background: transparent; color: #116b70; border: 0; padding: 4px 6px; text-decoration: underline; }
+button.link:hover:not(:disabled) { background: transparent; color: #08565b; }
+button.link.danger { color: #a2321f; }
 .form-panel fieldset > label { margin-top: 24px; }
 .quote-panel > button { display: block; width: 100%; margin: 12px 0; }
 .detail-panel { padding: 24px; margin-bottom: 20px; }

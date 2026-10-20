@@ -15,6 +15,7 @@ function errorText(value: unknown): string {
   if (typeof value === 'string') return value
   if (Array.isArray(value)) return value.map(errorText).filter(Boolean).join(' · ')
   if (value && typeof value === 'object') {
+    if ('detail' in value) return errorText((value as { detail: unknown }).detail)
     return Object.entries(value).map(([key, item]) => `${key}: ${errorText(item)}`).join(' · ')
   }
   return ''

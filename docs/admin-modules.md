@@ -6,20 +6,20 @@ Pantallas de gestión que acompañan al espacio de órdenes: clientes, catálogo
 
 | Módulo | Listado | Alta | Edición / baja |
 |---|---|---|---|
-| Pacientes | Sí, con búsqueda por nombre o DNI | Sí | No |
-| Clientes | Sí, con búsqueda por nombre o contacto | Sí | No |
-| Catálogo · Exámenes | Sí, con búsqueda por código o nombre | Sí | No |
-| Catálogo · Paquetes | Sí, con recuento de exámenes | Sí, con selección de exámenes | No |
-| Tarifarios · Exámenes | Sí, con búsqueda | Sí | No |
-| Tarifarios · Paquetes | Sí, con búsqueda | Sí | No |
+| Pacientes | Sí, con búsqueda por nombre o DNI | Sí | Sí |
+| Clientes | Sí, con búsqueda por nombre o contacto | Sí | Sí |
+| Catálogo · Exámenes | Sí, con búsqueda por código o nombre | Sí | Sí |
+| Catálogo · Paquetes | Sí, con recuento de exámenes | Sí, con selección de exámenes | Sí |
+| Tarifarios · Exámenes | Sí, con búsqueda | Sí | Sí |
+| Tarifarios · Paquetes | Sí, con búsqueda | Sí | Sí |
 
-Las altas usan los endpoints existentes del CRUD (`/api/pacientes/`, `/api/clientes/`, `/api/examenes/`) y los nuevos endpoints de solo alta y consulta para tarifas (`/api/tarifario-examenes/`, `/api/tarifario-paquetes/`).
+Las pantallas usan el CRUD existente (`/api/pacientes/`, `/api/clientes/`, `/api/examenes/`, `/api/paquetes/`) y los endpoints de tarifas (`/api/tarifario-examenes/`, `/api/tarifario-paquetes/`). La edición envía `PATCH` y la baja `DELETE` con confirmación previa.
 
 ## Límites conocidos
 
-- **Paquetes**: el alta envía la composición completa en una sola petición y el backend la guarda de forma atómica. La lista de exámenes define el orden de visualización; un examen repetido o inexistente devuelve `400`. La edición de la composición existe en la API (`PATCH /api/paquetes/<id>/` con `examenes`), pero todavía no está expuesta en la interfaz.
-- **Tarifarios**: las tarifas se agregan pero no se editan ni se dan de baja desde la interfaz. Una tarifa nueva participa en la cotización de órdenes posteriores; las órdenes ya guardadas recalculan su total con las tarifas vigentes, porque el precio no se congela por ítem.
-- **Clientes y pacientes**: la edición y la baja tampoco están expuestas en la interfaz.
+- **Bajas protegidas**: si un registro está en uso, la API responde `409 Conflict` con un mensaje y la interfaz lo muestra sin cerrar la pantalla. Ocurre, por ejemplo, al intentar borrar un paciente o cliente con órdenes, una zona con clientes o un examen usado en una orden.
+- **Paquetes**: el alta y la edición envían la composición completa en una sola petición y el backend la guarda de forma atómica. La lista de exámenes define el orden de visualización; un examen repetido o inexistente devuelve `400`.
+- **Tarifarios**: una tarifa nueva participa en la cotización de órdenes posteriores; las órdenes ya guardadas recalculan su total con las tarifas vigentes, porque el precio no se congela por ítem.
 
 ## Verificación
 
