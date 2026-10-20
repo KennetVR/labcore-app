@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>LabCore — Verificación de reporte</title>
+</head>
+<body>
+  <main>
+    {% if number %}
+    <h1>Reporte registrado en LabCore</h1>
+    <p>Número: <strong>{{ number }}</strong></p>
+    <p>Esta consulta confirma el registro, no la integridad del archivo presentado.</p>
+    {% else %}
+    <h1>No se pudo verificar el reporte</h1>
+    <p>Consulte con el laboratorio para confirmar su autenticidad.</p>
+    {% endif %}
+  </main>
+</body>
+</html>
