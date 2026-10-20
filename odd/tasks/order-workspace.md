@@ -12,7 +12,7 @@ Branch: `feature/order-workspace`; route: inline; delivery: feature-branch-chain
 - T1 [S2,S4] inline — done — commit `95a369c`; 9 session tests, independent security verification passed. Native review candidate declined by the user (`declined_this_candidate`).
 - T2 [S2,S3,S4] inline — done — commit `d38a479`; 22 backend tests; assess `medium`, `under_budget`.
 - T3 [S1,S2,S3] inline — done — commit `1c26649`; build, lint and 3 Playwright tests passed; assess `medium`, `under_budget`.
-- T4 [S1–S4] inline — done — commit `3bd3202`; independent verifier found B1 (pending save discarded a newer draft) and B2 (unrelated exam accepted for a package); both corrected with regressions and rechecked.
+- T4 [S1–S4] inline — done — commit `6df2b6c`; independent verifier found B1 (pending save discarded a newer draft) and B2 (unrelated exam accepted for a package); both corrected with regressions and rechecked.
 
 ## Log
 - L1: Original implementation request: "Ok arranquemos lo que recomiendas". Later authorizations: "Si", "OK", "Continua", "Continua".
