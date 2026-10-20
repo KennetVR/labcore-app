@@ -76,6 +76,11 @@ class OrdenItemSerializer(serializers.ModelSerializer):
     paquete = serializers.PrimaryKeyRelatedField(
         queryset=Paquete.objects.all(), allow_null=True, required=False
     )
+    examen_codigo = serializers.CharField(source="examen.codigo", read_only=True)
+    examen_nombre = serializers.CharField(source="examen.nombre", read_only=True)
+    paquete_nombre = serializers.CharField(
+        source="paquete.nombre", read_only=True, default=""
+    )
 
     def validate(self, attrs):
         paquete = attrs.get("paquete")
@@ -88,7 +93,10 @@ class OrdenItemSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "paquete",
+            "paquete_nombre",
             "examen",
+            "examen_codigo",
+            "examen_nombre",
             "cantidad",
             "medicion",
             "resultado",
