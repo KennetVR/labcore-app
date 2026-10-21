@@ -39,6 +39,7 @@ td:first-child { color: #116b70; }
 .badge.en_proceso { background: #fff2d5; color: #815a10; }
 .badge.rango.alto, .badge.rango.bajo { background: #fde5e1; color: #a33222; }
 .badge.rango.normal { background: #e3f3e9; color: #267345; }
+.badge.anulado { background: #eceff1; color: #55636b; }
 .ref-cell { color: #5b6b70; font-size: .85rem; white-space: nowrap; }
 .table-footer { font-size: .8rem; padding: 15px 24px; margin: 0; }
 .form-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 24px; align-items: start; }
@@ -67,6 +68,7 @@ button.link.danger { color: #a2321f; }
 .button-link:hover { background: #08565b; }
 .delivery-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
 .delivery-form input { width: 280px; }
+.link-button { background: none; border: none; padding: 0; color: #116b70; font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
 .form-panel fieldset > label { margin-top: 24px; }
 .quote-panel > button { display: block; width: 100%; margin: 12px 0; }
 .detail-panel { padding: 24px; margin-bottom: 20px; }

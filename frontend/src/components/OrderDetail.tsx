@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import type { OrderDetail as Order, OrderItem, EnvioReporte } from '../api/types'
-import { money, orderStates } from '../api/types'
+import { money, orderStates, paymentMethods, paymentRoles } from '../api/types'
 
 const measurements: Record<string, string> = { unica: 'Única', pre_post: 'Pre y post' }
 const closedStates = ['validada', 'pdf', 'entregada']
@@ -33,6 +33,9 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
   const [busy, setBusy] = useState('')
   const [retry, setRetry] = useState(0)
   const [history, setHistory] = useState<EnvioReporte[]>([])
+  const [payAmount, setPayAmount] = useState('')
+  const [payMethod, setPayMethod] = useState('contado')
+  const [payNote, setPayNote] = useState('')
 
   function load(data: Order) {
     setOrder(data)
@@ -63,6 +66,7 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
   const editable = order !== null && !closedStates.includes(order.estado)
   const canValidate = role === 'admin' || role === 'encargada'
   const canReport = role === 'admin' || role === 'encargada' || role === 'reportes'
+  const canPay = paymentRoles.includes(role)
   const complete = order !== null && order.items.length > 0
     && order.items.every(item => (drafts[item.id]?.resultado ?? '').trim() !== '')
 
@@ -122,6 +126,38 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
     finally { setBusy('') }
   }
 
+  async function registerPayment() {    if (!order) return
+    setBusy('pago'); setError('')
+    try {
+      await api('/pagos/', {
+        method: 'POST',
+        body: JSON.stringify({
+          orden: order.id,
+          monto: payAmount.trim(),
+          forma_pago: payMethod,
+          observacion: payNote.trim(),
+        }),
+      })
+      setPayAmount(''); setPayNote('')
+      setRetry(n => n + 1)
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo registrar el pago.') }
+    finally { setBusy('') }
+  }
+
+  async function annulPayment(paymentId: number, orderNumber: string) {
+    const motivo = window.prompt(`Motivo de la anulación del pago de ${orderNumber}:`)
+    if (motivo === null) return
+    if (!motivo.trim()) { setError('Indique el motivo de la anulación.'); return }
+    setBusy('anular'); setError('')
+    try {
+      await api(`/pagos/${paymentId}/anular/`, {
+        method: 'POST', body: JSON.stringify({ motivo: motivo.trim() }),
+      })
+      setRetry(n => n + 1)
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo anular el pago.') }
+    finally { setBusy('') }
+  }
+
   const updateDraft = (itemId: number, field: 'resultado' | 'bandera', value: string) =>
     setDrafts(current => {
       const existing = current[itemId] ?? { resultado: '', bandera: '', banderaManual: false }
@@ -149,6 +185,9 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
           <div><dt>Cliente</dt><dd>{order.cliente_nombre || 'Particular'}</dd></div>
           <div><dt>Solicitado por</dt><dd>{order.solicitado_por || 'Sin dato'}</dd></div>
           <div><dt>Total</dt><dd>{order.total === null ? <span className="warning">Tarifa pendiente</span> : money(order.total)}</dd></div>
+          <div><dt>Pagado</dt><dd>{money(order.total_pagado ?? '0')}</dd></div>
+          <div><dt>Saldo</dt><dd>{order.saldo === null ? <span className="warning">Sin total</span>
+            : Number(order.saldo) > 0 ? <span className="warning">{money(order.saldo)}</span> : money(order.saldo)}</dd></div>
         </dl>
       </section>
       <section className="panel detail-panel">
@@ -230,6 +269,41 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
           </button>
         </div>}
       </section> : null}
+      <section className="panel detail-panel">
+        <h2>Pagos</h2>
+        {(order.pagos ?? []).length === 0 ? <p className="empty">Esta orden no tiene pagos registrados.</p> : <div className="table-scroll">
+          <table><thead><tr><th>Fecha</th><th>Monto</th><th>Forma</th><th>Registrado por</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody>{(order.pagos ?? []).map(p => <tr key={p.id}>
+              <td>{new Date(p.fecha).toLocaleString('es-PE')}</td>
+              <td>{money(p.monto)}</td>
+              <td>{paymentMethods[p.forma_pago] || p.forma_pago}</td>
+              <td>{p.registrado_por_nombre || '—'}</td>
+              <td>{p.anulado
+                ? <span className="badge anulado" title={p.motivo_anulacion}>Anulado</span>
+                : <span className="badge validada">Vigente</span>}</td>
+              <td>{canPay && !p.anulado
+                ? <button className="secondary" disabled={busy !== ''} onClick={() => annulPayment(p.id, order.numero)}>Anular</button>
+                : null}</td>
+            </tr>)}</tbody></table>
+        </div>}
+        {canPay && order.total !== null && <div className="delivery-form" style={{marginTop: '12px'}}>
+          <label>Monto del pago
+            <input type="number" min="0.01" step="0.01" value={payAmount}
+              onChange={e => setPayAmount(e.target.value)} placeholder="0.00" />
+          </label>
+          <label>Forma de pago
+            <select value={payMethod} onChange={e => setPayMethod(e.target.value)}>
+              {Object.entries(paymentMethods).map(([key, title]) => <option key={key} value={key}>{title}</option>)}
+            </select>
+          </label>
+          <label>Observación
+            <input value={payNote} onChange={e => setPayNote(e.target.value)} maxLength={200} />
+          </label>
+          <button disabled={busy !== '' || !payAmount.trim()} onClick={registerPayment}>
+            {busy === 'pago' ? 'Registrando…' : 'Registrar pago'}
+          </button>
+        </div>}
+      </section>
       <section className="panel detail-panel">
         <h2>Observación</h2>
         <p>{order.observacion || 'Sin observaciones.'}</p>
