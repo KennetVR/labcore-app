@@ -1,7 +1,9 @@
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import transaction
-from django.db.models import ProtectedError
+from django.db.models import ProtectedError, Sum
 from django.http import FileResponse
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -16,6 +18,7 @@ from catalogo.models import (
     TarifarioPaquete,
     Zona,
 )
+from facturacion.models import Pago
 from ordenes.models import Orden
 from pacientes.models import Paciente
 from reportes.correo import enviar_reporte_por_correo
@@ -30,6 +33,7 @@ from .serializers import (
     OrdenSerializer,
     PaqueteSerializer,
     PacienteSerializer,
+    PagoSerializer,
     ReporteSerializer,
     TarifarioExamenSerializer,
     TarifarioPaqueteSerializer,
@@ -105,6 +109,118 @@ class TarifarioPaqueteViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
     queryset = TarifarioPaquete.objects.select_related("paquete", "zona", "cliente")
     serializer_class = TarifarioPaqueteSerializer
     search_fields = ["paquete__nombre"]
+
+
+ROLES_PAGO = ("admin", "encargada", "reportes")
+
+
+def puede_gestionar_pagos(user):
+    return getattr(user, "rol", "") in ROLES_PAGO
+
+
+class PagoViewSet(viewsets.ModelViewSet):
+    """Los pagos no se editan ni se borran: se anulan. Solo lectura y alta."""
+
+    queryset = Pago.objects.select_related(
+        "orden", "orden__cliente", "registrado_por", "anulado_por"
+    )
+    serializer_class = PagoSerializer
+    http_method_names = ["get", "post", "head", "options"]
+    search_fields = ["orden__numero", "orden__cliente__nombre", "observacion"]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        params = self.request.query_params
+        if params.get("cliente"):
+            queryset = queryset.filter(orden__cliente_id=params["cliente"])
+        if params.get("orden"):
+            queryset = queryset.filter(orden_id=params["orden"])
+        if params.get("forma_pago"):
+            queryset = queryset.filter(forma_pago=params["forma_pago"])
+        anulado = params.get("anulado")
+        if anulado in ("true", "false"):
+            queryset = queryset.filter(anulado=anulado == "true")
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        if not puede_gestionar_pagos(request.user):
+            return Response(
+                {"detail": "No tiene permiso para registrar pagos."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        serializer.save(registrado_por=self.request.user)
+
+    @action(detail=True, methods=["post"])
+    def anular(self, request, pk=None):
+        if not puede_gestionar_pagos(request.user):
+            return Response(
+                {"detail": "No tiene permiso para anular pagos."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        pago = self.get_object()
+        if pago.anulado:
+            return Response(
+                {"detail": "El pago ya fue anulado."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        motivo = str(request.data.get("motivo", "")).strip()
+        if not motivo:
+            return Response(
+                {"motivo": "Indique el motivo de la anulación."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        pago.anulado = True
+        pago.anulado_por = request.user
+        pago.anulado_at = timezone.now()
+        pago.motivo_anulacion = motivo
+        pago.save(update_fields=["anulado", "anulado_por", "anulado_at", "motivo_anulacion"])
+        return Response(self.get_serializer(pago).data)
+
+    @action(detail=False, methods=["get"], url_path="estado-cuenta")
+    def estado_cuenta(self, request):
+        """Resumen por cliente: facturado, pagado y saldo pendiente."""
+        ordenes = Orden.objects.select_related("cliente").all()
+        pagado_por_orden = {
+            orden_id: total
+            for orden_id, total in Pago.objects.filter(anulado=False)
+            .values_list("orden_id")
+            .annotate(suma=Sum("monto"))
+        }
+        filas = {}
+        for orden in ordenes:
+            total = orden.calcular_total()
+            if total is None:
+                continue
+            nombre = orden.cliente.nombre if orden.cliente else "Particular"
+            clave = orden.cliente_id or 0
+            fila = filas.get(clave)
+            if fila is None:
+                fila = filas[clave] = {
+                    "cliente_id": orden.cliente_id,
+                    "cliente": nombre,
+                    "facturado": Decimal("0"),
+                    "pagado": Decimal("0"),
+                }
+            fila["facturado"] += total
+            fila["pagado"] += pagado_por_orden.get(orden.id, Decimal("0"))
+        resultado = []
+        for fila in filas.values():
+            facturado = fila["facturado"].quantize(Decimal("0.01"))
+            pagado = fila["pagado"].quantize(Decimal("0.01"))
+            resultado.append(
+                {
+                    "cliente_id": fila["cliente_id"],
+                    "cliente": fila["cliente"],
+                    "facturado": str(facturado),
+                    "pagado": str(pagado),
+                    "saldo": str((facturado - pagado).quantize(Decimal("0.01"))),
+                }
+            )
+        resultado.sort(key=lambda fila: fila["cliente"])
+        return Response(resultado)
 
 
 class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):

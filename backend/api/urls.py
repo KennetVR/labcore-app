@@ -7,6 +7,7 @@ from .views import (
     OrdenViewSet,
     PaqueteViewSet,
     PacienteViewSet,
+    PagoViewSet,
     ReporteViewSet,
     TarifarioExamenViewSet,
     TarifarioPaqueteViewSet,
@@ -23,6 +24,7 @@ router.register("ordenes", OrdenViewSet)
 router.register("tarifario-examenes", TarifarioExamenViewSet)
 router.register("tarifario-paquetes", TarifarioPaqueteViewSet)
 router.register("reportes", ReporteViewSet)
+router.register("pagos", PagoViewSet)
 
 urlpatterns = [
     path("", include(router.urls)),

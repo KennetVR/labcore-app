@@ -72,6 +72,20 @@ class Orden(models.Model):
             total += precio * item.cantidad
         return total.quantize(Decimal("0.01"))
 
+    def total_pagado(self):
+        """Suma de los pagos que no fueron anulados."""
+        from django.db.models import Sum
+
+        total = self.pagos.filter(anulado=False).aggregate(suma=Sum("monto"))["suma"]
+        return (total or Decimal("0")).quantize(Decimal("0.01"))
+
+    def saldo(self):
+        """Saldo pendiente: el total menos lo pagado. None si la orden no tiene total."""
+        total = self.calcular_total()
+        if total is None:
+            return None
+        return (total - self.total_pagado()).quantize(Decimal("0.01"))
+
     def __str__(self):
         return self.numero
 
