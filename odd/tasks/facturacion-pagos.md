@@ -78,3 +78,9 @@ T3: `docs/facturacion.md`.
 - Decisión tomada: `admin`, `encargada` y `reportes` registran y anulan pagos; `auxiliar` y `muestreo` no.
 - 2026-10-21 — Se integró `feat/banderas-automaticas` en esta rama (`1d0b831`): la DB local tenía la migración `ordenes.0002` aplicada y, sin el modelo en la rama, la tabla quedaba desalineada. Las dos features tocan tablas distintas, así que no hubo conflicto de migración.
 - Evidencia: 22 pruebas backend nuevas (T1), 5 E2E nuevos (T2), 38/38 comprobaciones live de API y 10/10 en navegador real contra el stack vivo.
+- 2026-10-21 — **Revisión independiente** (verificador sobre `84c821a..HEAD`) encontró 3 blockers, corregidos en `d7c9b8f`:
+  - **B1** `?search=` no filtraba: `search_fields` estaba declarado sin `filter_backends`, así que DRF nunca instalaba `SearchFilter`. Corregido en `PagoViewSet` (el resto del proyecto mantiene el hueco preexistente).
+  - **B2** La bandera manual no sobrevivía a un guardado posterior: el flag solo se leía del request y nunca del valor persistido. Ahora, si el cliente no envía `bandera_manual`, se respeta el origen guardado.
+  - **B3** `{"motivo": null}` anulaba el pago y guardaba el literal `"None"`. Ahora el motivo se valida antes de convertirlo a texto.
+  - Avisos corregidos: el parseo booleano no confundía la cadena `"false"`; vaciar la bandera en la UI devuelve el control al cálculo automático; el listado de órdenes pasó de 222 a 103 consultas con 20 órdenes (baseline 102) gracias a `annotate`, `prefetch_related` y a calcular el total una sola vez por orden.
+  - Recheck live: 18/18. Suite: 111 backend + 29 E2E verdes.
