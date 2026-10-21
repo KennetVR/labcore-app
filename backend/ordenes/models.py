@@ -89,6 +89,7 @@ class OrdenItem(models.Model):
     medicion = models.CharField(max_length=10, choices=Medicion.choices, default=Medicion.UNICA)
     resultado = models.CharField(max_length=100, blank=True)
     bandera = models.CharField(max_length=5, blank=True)
+    bandera_manual = models.BooleanField(default=False)
     importado_de = models.CharField(max_length=50, blank=True)
     validado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL,

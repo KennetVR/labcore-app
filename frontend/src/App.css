@@ -37,6 +37,9 @@ td:first-child { color: #116b70; }
 .badge { white-space: nowrap; display: inline-block; border-radius: 20px; padding: 5px 10px; font-size: .78rem; background: #e8f0fb; color: #305d9e; }
 .badge.validada, .badge.entregada { background: #e3f3e9; color: #267345; }
 .badge.en_proceso { background: #fff2d5; color: #815a10; }
+.badge.rango.alto, .badge.rango.bajo { background: #fde5e1; color: #a33222; }
+.badge.rango.normal { background: #e3f3e9; color: #267345; }
+.ref-cell { color: #5b6b70; font-size: .85rem; white-space: nowrap; }
 .table-footer { font-size: .8rem; padding: 15px 24px; margin: 0; }
 .form-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 24px; align-items: start; }
 .form-panel, .quote-panel { padding: 26px; }

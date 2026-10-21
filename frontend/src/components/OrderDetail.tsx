@@ -1,12 +1,28 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { OrderDetail as Order, EnvioReporte } from '../api/types'
+import type { OrderDetail as Order, OrderItem, EnvioReporte } from '../api/types'
 import { money, orderStates } from '../api/types'
 
 const measurements: Record<string, string> = { unica: 'Única', pre_post: 'Pre y post' }
 const closedStates = ['validada', 'pdf', 'entregada']
+const rangeLabels: Record<string, string> = { alto: 'Alto', bajo: 'Bajo', normal: 'En rango' }
 
-type Draft = { resultado: string; bandera: string }
+type Draft = { resultado: string; bandera: string; banderaManual: boolean }
+
+function formatRef(value: string | null): string {
+  if (value === null || value === '') return ''
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? String(parsed) : value
+}
+
+function referenceText(item: OrderItem): string {
+  const min = formatRef(item.ref_min)
+  const max = formatRef(item.ref_max)
+  if (min && max) return `${min} - ${max}${item.unidad ? ` ${item.unidad}` : ''}`
+  if (min) return `≥ ${min}${item.unidad ? ` ${item.unidad}` : ''}`
+  if (max) return `≤ ${max}${item.unidad ? ` ${item.unidad}` : ''}`
+  return item.ref_texto || ''
+}
 
 export default function OrderDetail({ id, role, onBack }: { id: number; role: string; onBack: () => void }) {
   const [order, setOrder] = useState<Order | null>(null)
@@ -20,7 +36,11 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
 
   function load(data: Order) {
     setOrder(data)
-    setDrafts(Object.fromEntries(data.items.map(item => [item.id, { resultado: item.resultado, bandera: item.bandera }])))
+    setDrafts(Object.fromEntries(data.items.map(item => [item.id, {
+      resultado: item.resultado,
+      bandera: item.bandera,
+      banderaManual: item.bandera_manual,
+    }])))
   }
 
   useEffect(() => {
@@ -62,6 +82,7 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
         id: item.id,
         resultado: drafts[item.id]?.resultado ?? '',
         bandera: drafts[item.id]?.bandera ?? '',
+        bandera_manual: Boolean(drafts[item.id]?.banderaManual ?? item.bandera_manual),
       })),
     })
   }
@@ -101,12 +122,13 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
     finally { setBusy('') }
   }
 
-  const updateDraft = (itemId: number, field: keyof Draft, value: string) =>
+  const updateDraft = (itemId: number, field: 'resultado' | 'bandera', value: string) =>
     setDrafts(current => {
-      const existing = current[itemId] ?? { resultado: '', bandera: '' }
+      const existing = current[itemId] ?? { resultado: '', bandera: '', banderaManual: false }
       const next = field === 'resultado'
         ? { ...existing, resultado: value }
-        : { ...existing, bandera: value }
+        // Editar la bandera a mano le da prioridad sobre el calculo automatico.
+        : { ...existing, bandera: value, banderaManual: true }
       return { ...current, [itemId]: next }
     })
 
@@ -132,8 +154,12 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
       <section className="panel detail-panel">
         <h2>Estudios</h2>
         {order.items.length === 0 ? <p className="empty">La orden no tiene estudios.</p> : <div className="table-scroll">
-          <table><thead><tr><th>Estudio</th><th>Cantidad</th><th>Medición</th><th>Resultado</th><th>Bandera</th></tr></thead>
-            <tbody>{order.items.map(item => <tr key={item.id}>
+          <table><thead><tr><th>Estudio</th><th>Cantidad</th><th>Medición</th><th>Resultado</th><th>Referencia</th><th>Bandera</th></tr></thead>
+            <tbody>{order.items.map(item => {
+              const manual = drafts[item.id]?.banderaManual ?? item.bandera_manual
+              // Lo que el sistema va a calcular al guardar, si el laboratorio no define la bandera.
+              const sugerencia = !manual && item.bandera_calculada ? item.bandera_calculada : ''
+              return <tr key={item.id}>
               <td><strong>{item.paquete ? item.paquete_nombre : `${item.examen_codigo} — ${item.examen_nombre}`}</strong>
                 {item.paquete && <small>{item.examen_codigo} — {item.examen_nombre}</small>}</td>
               <td>{item.cantidad}</td>
@@ -142,12 +168,19 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
                 ? <input aria-label={`Resultado ${item.examen_codigo}`} className="result-input" maxLength={100}
                   value={drafts[item.id]?.resultado ?? ''} onChange={e => updateDraft(item.id, 'resultado', e.target.value)} />
                 : item.resultado || 'Pendiente'}</td>
+              <td className="ref-cell">{referenceText(item) || '—'}</td>
               <td>{editable
                 ? <input aria-label={`Bandera ${item.examen_codigo}`} className="flag-input" maxLength={5}
+                  placeholder={sugerencia}
+                  title={sugerencia ? `El sistema calcula: ${sugerencia}` : undefined}
                   value={drafts[item.id]?.bandera ?? ''} onChange={e => updateDraft(item.id, 'bandera', e.target.value)} />
                 : item.bandera || '—'}
+                {item.rango_estado !== 'sin_rango' && <span className={`badge rango ${item.rango_estado}`}>
+                  {rangeLabels[item.rango_estado]}
+                  {manual && ' · manual'}
+                </span>}
                 {item.validado_at && <span className="badge validada">Validado</span>}</td>
-            </tr>)}</tbody></table>
+            </tr>})}</tbody></table>
         </div>}
         {editable ? <div className="form-actions">
           <button disabled={busy !== ''} onClick={saveResults}>{busy === 'resultados' ? 'Guardando…' : 'Guardar resultados'}</button>
