@@ -61,8 +61,8 @@ Ante la pregunta "¿Si el laboratorio registra un pago con el monto equivocado, 
 
 | ID | Specs | Ruta | Estado | Commit |
 |---|---|---|---|---|
-| T1 | S1, S2, S3, S4, S5, S6 | inline (backend) | hecho | `feat(api): pagos, saldo pendiente y anulacion` |
-| T2 | S1, S2, S3, S4 | inline (frontend) | pendiente | — |
+| T1 | S1, S2, S3, S4, S5, S6 | inline (backend) | hecho | `921237e feat(api): pagos, saldo pendiente y anulacion` |
+| T2 | S1, S2, S3, S4 | inline (frontend) | hecho | `7f57822 feat(web): pantalla de pagos, saldo y estado de cuenta` |
 | T3 | S1–S6 | inline (docs) | hecho (docs/facturacion.md en T1) | — |
 
 T1: modelo `Pago` con anulación, serializer, `PagoViewSet` con acción `anular` y `estado-cuenta`, saldo en el serializer de orden, tests backend.
@@ -76,3 +76,5 @@ T3: `docs/facturacion.md`.
 - L1 (2026-10-21) — Decisión de corrección de pagos: **"Inmutables, con anulación explícita (Recomendada)"**.
 - Decisión tomada: el saldo se calcula contra el total vigente de la orden, igual que el total que ya muestra el sistema. Congelar el precio de la orden es otra funcionalidad, no parte de esta.
 - Decisión tomada: `admin`, `encargada` y `reportes` registran y anulan pagos; `auxiliar` y `muestreo` no.
+- 2026-10-21 — Se integró `feat/banderas-automaticas` en esta rama (`1d0b831`): la DB local tenía la migración `ordenes.0002` aplicada y, sin el modelo en la rama, la tabla quedaba desalineada. Las dos features tocan tablas distintas, así que no hubo conflicto de migración.
+- Evidencia: 22 pruebas backend nuevas (T1), 5 E2E nuevos (T2), 38/38 comprobaciones live de API y 10/10 en navegador real contra el stack vivo.
