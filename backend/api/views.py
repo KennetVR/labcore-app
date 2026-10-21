@@ -395,6 +395,13 @@ class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
         reporte = Reporte(orden=orden, generado_por=request.user)
         try:
             with transaction.atomic():
+                # El PDF imprime la bandera guardada: se recalcula para que
+                # refleje el rango de referencia vigente. Las manuales no se tocan.
+                for item in orden.items.select_related("examen"):
+                    if item.bandera_manual:
+                        continue
+                    item.bandera = calcular_bandera(item.examen, item.resultado)
+                    item.save(update_fields=["bandera"])
                 reporte.save()
                 reporte.codigo_qr = f"LAB-{reporte.numero}"
                 reporte.pdf.save(
