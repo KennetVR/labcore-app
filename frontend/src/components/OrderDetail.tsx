@@ -163,8 +163,9 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
       const existing = current[itemId] ?? { resultado: '', bandera: '', banderaManual: false }
       const next = field === 'resultado'
         ? { ...existing, resultado: value }
-        // Editar la bandera a mano le da prioridad sobre el calculo automatico.
-        : { ...existing, bandera: value, banderaManual: true }
+        // Editar la bandera a mano le da prioridad sobre el calculo automatico;
+        // vaciarla devuelve el control al sistema.
+        : { ...existing, bandera: value, banderaManual: value.trim() !== '' }
       return { ...current, [itemId]: next }
     })
 

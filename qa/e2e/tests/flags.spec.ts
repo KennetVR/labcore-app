@@ -76,3 +76,16 @@ test('marca la bandera como manual cuando el laboratorio la edita', async ({ pag
     { id: 2, resultado: '14.2', bandera: '', bandera_manual: false },
   ])
 })
+
+test('vaciar la bandera devuelve el control al calculo automatico', async ({ page }) => {
+  const guardado = await abrirOrden(page)
+
+  await page.getByLabel('Bandera GLU').fill('')
+  await expect(page.getByText('Alto')).toBeVisible()
+  await page.getByRole('button', { name: 'Guardar resultados' }).click()
+
+  await expect.poll(() => guardado.items).toEqual([
+    { id: 1, resultado: '150', bandera: '', bandera_manual: false },
+    { id: 2, resultado: '14.2', bandera: '', bandera_manual: false },
+  ])
+})

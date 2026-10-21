@@ -3,11 +3,19 @@ from decimal import Decimal
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import transaction
-from django.db.models import ProtectedError, Sum
+from django.db.models import (
+    DecimalField,
+    ProtectedError,
+    Q,
+    Sum,
+    Value,
+)
+from django.db.models.functions import Coalesce
 from django.http import FileResponse
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 
 from catalogo.models import (
@@ -119,6 +127,15 @@ def puede_gestionar_pagos(user):
     return getattr(user, "rol", "") in ROLES_PAGO
 
 
+def valor_booleano(valor):
+    """Lee un booleano sin confundir la cadena "false" con True."""
+    if isinstance(valor, bool):
+        return valor
+    if isinstance(valor, str):
+        return valor.strip().lower() in ("true", "1", "yes", "si")
+    return bool(valor)
+
+
 class PagoViewSet(viewsets.ModelViewSet):
     """Los pagos no se editan ni se borran: se anulan. Solo lectura y alta."""
 
@@ -127,6 +144,7 @@ class PagoViewSet(viewsets.ModelViewSet):
     )
     serializer_class = PagoSerializer
     http_method_names = ["get", "post", "head", "options"]
+    filter_backends = [SearchFilter]
     search_fields = ["orden__numero", "orden__cliente__nombre", "observacion"]
 
     def get_queryset(self):
@@ -167,12 +185,15 @@ class PagoViewSet(viewsets.ModelViewSet):
                 {"detail": "El pago ya fue anulado."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        motivo = str(request.data.get("motivo", "")).strip()
-        if not motivo:
+        # El motivo se valida antes de convertirlo a texto: un null serializado
+        # no puede terminar guardado como el literal "None".
+        motivo = request.data.get("motivo")
+        if not isinstance(motivo, str) or not motivo.strip():
             return Response(
                 {"motivo": "Indique el motivo de la anulación."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
+        motivo = motivo.strip()
         pago.anulado = True
         pago.anulado_por = request.user
         pago.anulado_at = timezone.now()
@@ -225,7 +246,22 @@ class PagoViewSet(viewsets.ModelViewSet):
 
 
 class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
-    queryset = Orden.objects.select_related("reporte")
+    queryset = (
+        Orden.objects.select_related("reporte")
+        .annotate(
+            # El saldo se calcula por orden en el listado: se agrega el total
+            # pagado en la misma consulta para no sumar una consulta por orden.
+            total_pagado_agregado=Coalesce(
+                Sum("pagos__monto", filter=Q(pagos__anulado=False)),
+                Value(Decimal("0")),
+                output_field=DecimalField(max_digits=12, decimal_places=2),
+            )
+        )
+        # El annotate con agrupacion descarta el orden por defecto del modelo.
+        .order_by("-creado")
+        # Los pagos de cada orden se traen de una vez para no consultar por orden.
+        .prefetch_related("pagos")
+    )
     serializer_class = OrdenSerializer
     search_fields = ["numero", "paciente__dni", "paciente__apellidos"]
 
@@ -274,7 +310,12 @@ class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            manual = bool(entry.get("bandera_manual", False))
+            # Si el cliente no envia el flag se respeta el origen ya guardado, para
+            # que una bandera manual del laboratorio sobreviva a un guardado posterior.
+            if "bandera_manual" in entry:
+                manual = valor_booleano(entry["bandera_manual"])
+            else:
+                manual = item.bandera_manual
             cambios.append((item, resultado, bandera, manual))
 
         with transaction.atomic():

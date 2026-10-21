@@ -406,15 +406,26 @@ class OrdenSerializer(serializers.ModelSerializer):
         read_only_fields = ["numero", "fecha", "creado_por"]
 
     def get_total(self, obj):
-        total = obj.calcular_total()
+        total = self._total_de(obj)
         return str(total) if total is not None else None
 
     def get_total_pagado(self, obj):
         return str(obj.total_pagado())
 
     def get_saldo(self, obj):
-        saldo = obj.saldo()
-        return str(saldo) if saldo is not None else None
+        total = self._total_de(obj)
+        if total is None:
+            return None
+        return str((total - obj.total_pagado()).quantize(Decimal("0.01")))
+
+    def _total_de(self, obj):
+        """Calcula el total una sola vez por orden: el total consulta tarifas."""
+        cache = getattr(self, "_totales", None)
+        if cache is None:
+            cache = self._totales = {}
+        if obj.pk not in cache:
+            cache[obj.pk] = obj.calcular_total()
+        return cache[obj.pk]
 
     def get_reporte(self, obj):
         reporte = getattr(obj, "reporte", None)

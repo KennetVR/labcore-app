@@ -76,6 +76,9 @@ class Orden(models.Model):
         """Suma de los pagos que no fueron anulados."""
         from django.db.models import Sum
 
+        anotado = getattr(self, "total_pagado_agregado", None)
+        if anotado is not None:
+            return Decimal(anotado).quantize(Decimal("0.01"))
         total = self.pagos.filter(anulado=False).aggregate(suma=Sum("monto"))["suma"]
         return (total or Decimal("0")).quantize(Decimal("0.01"))
 
