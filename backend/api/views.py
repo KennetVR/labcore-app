@@ -19,6 +19,7 @@ from catalogo.models import (
     Zona,
 )
 from facturacion.models import Pago
+from ordenes.banderas import calcular_bandera, estado_rango
 from ordenes.models import Orden
 from pacientes.models import Paciente
 from reportes.correo import enviar_reporte_por_correo
@@ -273,13 +274,22 @@ class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            cambios.append((item, resultado, bandera))
+            manual = bool(entry.get("bandera_manual", False))
+            cambios.append((item, resultado, bandera, manual))
 
         with transaction.atomic():
-            for item, resultado, bandera in cambios:
+            for item, resultado, bandera, manual in cambios:
                 item.resultado = resultado
-                item.bandera = bandera
-                item.save(update_fields=["resultado", "bandera"])
+                estado = estado_rango(item.examen, resultado)
+                if manual or estado == "sin_rango":
+                    # La bandera manual del laboratorio tiene prioridad; sin rango
+                    # de referencia el sistema no puede calcular una.
+                    item.bandera = bandera
+                    item.bandera_manual = manual
+                else:
+                    item.bandera = calcular_bandera(item.examen, resultado)
+                    item.bandera_manual = False
+                item.save(update_fields=["resultado", "bandera", "bandera_manual"])
             self._actualizar_estado_resultados(orden)
         return Response(self.get_serializer(orden).data)
 

@@ -13,6 +13,7 @@ from catalogo.models import (
     Zona,
 )
 from facturacion.models import Pago
+from ordenes.banderas import calcular_bandera, estado_rango
 from ordenes.models import Orden, OrdenItem
 from pacientes.models import Paciente
 from reportes.models import EnvioReporte, Reporte
@@ -237,6 +238,22 @@ class OrdenItemSerializer(serializers.ModelSerializer):
     paquete_nombre = serializers.CharField(
         source="paquete.nombre", read_only=True, default=""
     )
+    unidad = serializers.CharField(source="examen.unidad", read_only=True)
+    ref_min = serializers.DecimalField(
+        source="examen.ref_min", max_digits=12, decimal_places=4, read_only=True, allow_null=True
+    )
+    ref_max = serializers.DecimalField(
+        source="examen.ref_max", max_digits=12, decimal_places=4, read_only=True, allow_null=True
+    )
+    ref_texto = serializers.CharField(source="examen.ref_texto", read_only=True)
+    bandera_calculada = serializers.SerializerMethodField()
+    rango_estado = serializers.SerializerMethodField()
+
+    def get_bandera_calculada(self, obj):
+        return calcular_bandera(obj.examen, obj.resultado)
+
+    def get_rango_estado(self, obj):
+        return estado_rango(obj.examen, obj.resultado)
 
     def validate(self, attrs):
         paquete = attrs.get("paquete")
@@ -257,6 +274,13 @@ class OrdenItemSerializer(serializers.ModelSerializer):
             "medicion",
             "resultado",
             "bandera",
+            "bandera_manual",
+            "bandera_calculada",
+            "rango_estado",
+            "unidad",
+            "ref_min",
+            "ref_max",
+            "ref_texto",
             "validado_por",
             "validado_at",
         ]
