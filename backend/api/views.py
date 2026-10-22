@@ -18,6 +18,8 @@ from rest_framework.decorators import action
 from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 
+from accounts.capacidades import puede
+from accounts.permisos import permiso_por_metodo
 from catalogo.models import (
     Cliente,
     Examen,
@@ -26,6 +28,7 @@ from catalogo.models import (
     TarifarioPaquete,
     Zona,
 )
+from core.models import Bitacora
 from facturacion.models import Pago
 from ordenes.banderas import calcular_bandera, estado_rango
 from ordenes.models import Orden
@@ -82,49 +85,66 @@ class ProtectedDestroyMixin:
 class ZonaViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
     queryset = Zona.objects.all()
     serializer_class = ZonaSerializer
+    permission_classes = [
+        permiso_por_metodo("catalogo.ver", "catalogo.editar", "catalogo.editar")
+    ]
 
 
 class ClienteViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
     queryset = Cliente.objects.all()
     serializer_class = ClienteSerializer
     search_fields = ["nombre", "contacto"]
+    permission_classes = [
+        permiso_por_metodo("clientes.ver", "clientes.editar", "clientes.eliminar")
+    ]
 
 
 class ExamenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
     queryset = Examen.objects.all()
     serializer_class = ExamenSerializer
     search_fields = ["codigo", "nombre"]
+    permission_classes = [
+        permiso_por_metodo("catalogo.ver", "catalogo.editar", "catalogo.editar")
+    ]
 
 
 class PaqueteViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
     queryset = Paquete.objects.all()
     serializer_class = PaqueteSerializer
     search_fields = ["nombre"]
+    permission_classes = [
+        permiso_por_metodo("catalogo.ver", "catalogo.editar", "catalogo.editar")
+    ]
 
 
 class PacienteViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
     queryset = Paciente.objects.all()
     serializer_class = PacienteSerializer
     search_fields = ["dni", "apellidos", "nombres"]
+    permission_classes = [
+        permiso_por_metodo("pacientes.ver", "pacientes.editar", "pacientes.eliminar")
+    ]
 
 
 class TarifarioExamenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
     queryset = TarifarioExamen.objects.select_related("examen", "zona", "cliente")
     serializer_class = TarifarioExamenSerializer
     search_fields = ["examen__codigo", "examen__nombre"]
+    permission_classes = [
+        permiso_por_metodo("tarifas.ver", "tarifas.editar", "tarifas.editar")
+    ]
 
 
 class TarifarioPaqueteViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
     queryset = TarifarioPaquete.objects.select_related("paquete", "zona", "cliente")
     serializer_class = TarifarioPaqueteSerializer
     search_fields = ["paquete__nombre"]
+    permission_classes = [
+        permiso_por_metodo("tarifas.ver", "tarifas.editar", "tarifas.editar")
+    ]
 
 
-ROLES_PAGO = ("admin", "encargada", "reportes")
-
-
-def puede_gestionar_pagos(user):
-    return getattr(user, "rol", "") in ROLES_PAGO
+ORDENES_CERRADAS = (Orden.Estado.VALIDADA, Orden.Estado.PDF, Orden.Estado.ENTREGADA)
 
 
 def valor_booleano(valor):
@@ -146,6 +166,7 @@ class PagoViewSet(viewsets.ModelViewSet):
     http_method_names = ["get", "post", "head", "options"]
     filter_backends = [SearchFilter]
     search_fields = ["orden__numero", "orden__cliente__nombre", "observacion"]
+    permission_classes = [permiso_por_metodo("pagos.ver", "pagos.registrar")]
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -162,7 +183,7 @@ class PagoViewSet(viewsets.ModelViewSet):
         return queryset
 
     def create(self, request, *args, **kwargs):
-        if not puede_gestionar_pagos(request.user):
+        if not puede(getattr(request.user, "rol", ""), "pagos.registrar"):
             return Response(
                 {"detail": "No tiene permiso para registrar pagos."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -174,9 +195,9 @@ class PagoViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def anular(self, request, pk=None):
-        if not puede_gestionar_pagos(request.user):
+        if not puede(getattr(request.user, "rol", ""), "pagos.anular"):
             return Response(
-                {"detail": "No tiene permiso para anular pagos."},
+                {"detail": "Solo un administrador puede anular pagos."},
                 status=status.HTTP_403_FORBIDDEN,
             )
         pago = self.get_object()
@@ -264,6 +285,41 @@ class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
     )
     serializer_class = OrdenSerializer
     search_fields = ["numero", "paciente__dni", "paciente__apellidos"]
+    permission_classes = [
+        permiso_por_metodo("ordenes.ver", "ordenes.editar", "ordenes.eliminar")
+    ]
+
+    def update(self, request, *args, **kwargs):
+        orden = self.get_object()
+        if orden.estado in ORDENES_CERRADAS:
+            return Response(
+                {"detail": "La orden ya está validada y no admite cambios."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        orden = self.get_object()
+        if orden.estado in ORDENES_CERRADAS:
+            return Response(
+                {"detail": "La orden ya está validada y no se puede eliminar."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if getattr(orden, "reporte", None) is not None:
+            return Response(
+                {"detail": "La orden tiene un reporte emitido y no se puede eliminar."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if orden.pagos.exists():
+            return Response(
+                {
+                    "detail": (
+                        "La orden tiene pagos registrados; consérvela como historial."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().destroy(request, *args, **kwargs)
 
     @action(detail=False, methods=["post"])
     def cotizar(self, request):
@@ -273,12 +329,13 @@ class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def resultados(self, request, pk=None):
+        if not puede(getattr(request.user, "rol", ""), "resultados.capturar"):
+            return Response(
+                {"detail": "No tiene permiso para capturar resultados."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         orden = self.get_object()
-        if orden.estado in (
-            Orden.Estado.VALIDADA,
-            Orden.Estado.PDF,
-            Orden.Estado.ENTREGADA,
-        ):
+        if orden.estado in ORDENES_CERRADAS:
             return Response(
                 {"detail": "La orden ya está validada y no admite cambios."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -347,7 +404,7 @@ class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def validar(self, request, pk=None):
-        if getattr(request.user, "rol", "") not in ("admin", "encargada"):
+        if not puede(getattr(request.user, "rol", ""), "resultados.validar"):
             return Response(
                 {"detail": "Solo la encargada o un administrador pueden validar."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -374,8 +431,58 @@ class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
         return Response(self.get_serializer(orden).data)
 
     @action(detail=True, methods=["post"])
+    def reabrir(self, request, pk=None):
+        """Corrección autorizada: vuelve a captura y exige una nueva validación."""
+        if not puede(getattr(request.user, "rol", ""), "ordenes.reabrir"):
+            return Response(
+                {"detail": "Solo un administrador puede reabrir una orden validada."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        orden = self.get_object()
+        if (
+            orden.estado != Orden.Estado.VALIDADA
+            or getattr(orden, "reporte", None) is not None
+        ):
+            return Response(
+                {
+                    "detail": (
+                        "Solo se reabre una orden validada que todavía no tiene reporte."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        motivo = request.data.get("motivo")
+        if not isinstance(motivo, str) or not motivo.strip():
+            return Response(
+                {"motivo": "Indique el motivo de la reapertura."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        motivo = motivo.strip()
+        with transaction.atomic():
+            validadores = sorted(
+                {
+                    item.validado_por.get_full_name() or item.validado_por.username
+                    for item in orden.items.select_related("validado_por")
+                    if item.validado_por
+                }
+            )
+            orden.items.update(validado_por=None, validado_at=None)
+            orden.estado = Orden.Estado.RESULTADA
+            orden.save(update_fields=["estado"])
+            Bitacora.objects.create(
+                usuario=request.user,
+                accion=f"Reabrió la orden {orden.numero}",
+                detalle=(
+                    f"Motivo: {motivo}. Validación previa: "
+                    f"{', '.join(validadores) or 'sin registro'}."
+                ),
+                ip=request.META.get("REMOTE_ADDR", "")[:45],
+            )
+        return Response(self.get_serializer(orden).data)
+
+    @action(detail=True, methods=["post"])
     def reporte(self, request, pk=None):
-        if getattr(request.user, "rol", "") not in ("admin", "encargada", "reportes"):
+        if not puede(getattr(request.user, "rol", ""), "reportes.generar"):
             return Response(
                 {"detail": "No tiene permiso para generar reportes."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -429,7 +536,7 @@ class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def entrega(self, request, pk=None):
-        if getattr(request.user, "rol", "") not in ("admin", "encargada", "reportes"):
+        if not puede(getattr(request.user, "rol", ""), "reportes.entregar"):
             return Response(
                 {"detail": "No tiene permiso para registrar entregas."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -485,8 +592,11 @@ class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=["get"])
     def envios(self, request, pk=None):
-        if getattr(request.user, "rol", "") not in ("admin", "encargada", "reportes"):
-            return Response({"detail": "No tiene permiso para consultar envíos."}, status=403)
+        if not puede(getattr(request.user, "rol", ""), "reportes.ver"):
+            return Response(
+                {"detail": "No tiene permiso para consultar envíos."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         orden = self.get_object()
         eventos = EnvioReporte.objects.filter(reporte__orden=orden).select_related("usuario")
         page = self.paginate_queryset(eventos)
@@ -494,8 +604,11 @@ class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def reenviar(self, request, pk=None):
-        if getattr(request.user, "rol", "") not in ("admin", "encargada", "reportes"):
-            return Response({"detail": "No tiene permiso para reenviar reportes."}, status=403)
+        if not puede(getattr(request.user, "rol", ""), "reportes.reenviar"):
+            return Response(
+                {"detail": "No tiene permiso para reenviar reportes."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         orden = self.get_object()
         reporte = getattr(orden, "reporte", None)
         if reporte is None or not reporte.pdf or reporte.entregado_at is None:
@@ -528,6 +641,7 @@ class ReporteViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Reporte.objects.select_related("orden")
     serializer_class = ReporteSerializer
     search_fields = ["numero", "orden__numero"]
+    permission_classes = [permiso_por_metodo("reportes.ver")]
 
     @action(detail=True, methods=["get"])
     def pdf(self, request, pk=None):
