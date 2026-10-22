@@ -101,9 +101,11 @@ def test_valida_con_todos_los_resultados(api, usuario):
 
 
 @pytest.mark.django_db
-def test_auxiliar_no_puede_validar(api, usuario):
+def test_un_rol_fuera_de_la_politica_no_puede_validar(api, usuario):
     orden, primero, segundo = crear_orden()
     OrdenItem.objects.filter(orden=orden).update(resultado="1")
+    usuario.rol = "auxiliar"
+    usuario.save()
     api.force_authenticate(user=usuario)
 
     resp = api.post(f"/api/ordenes/{orden.id}/validar/", {}, format="json")

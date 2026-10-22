@@ -11,8 +11,8 @@ from catalogo.models import (
 
 
 @pytest.mark.django_db
-def test_lista_y_crea_tarifa_de_examen(api, usuario):
-    api.force_authenticate(user=usuario)
+def test_lista_y_crea_tarifa_de_examen(api, administrador):
+    api.force_authenticate(user=administrador)
     examen = Examen.objects.create(codigo="HB", nombre="Hemoglobina")
     zona = Zona.objects.create(nombre="Lima Norte")
     cliente = Cliente.objects.create(nombre="Clinica Sur")
@@ -41,8 +41,8 @@ def test_lista_y_crea_tarifa_de_examen(api, usuario):
 
 
 @pytest.mark.django_db
-def test_lista_y_crea_tarifa_de_paquete(api, usuario):
-    api.force_authenticate(user=usuario)
+def test_lista_y_crea_tarifa_de_paquete(api, administrador):
+    api.force_authenticate(user=administrador)
     paquete = Paquete.objects.create(nombre="Control Mensual", frecuencia="mensual")
     tarifa = TarifarioPaquete.objects.create(paquete=paquete, precio="45.00")
 

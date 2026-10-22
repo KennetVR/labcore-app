@@ -16,7 +16,7 @@ def test_la_busqueda_textual_filtra_pagos(api):
     cliente = Cliente.objects.create(nombre="Clinica Alfa")
     o1 = crear_orden_con_total(cliente=cliente)
     o2 = crear_orden_con_total()
-    api.force_authenticate(user=usuario_con_rol("reportes"))
+    api.force_authenticate(user=usuario_con_rol("encargada"))
     api.post("/api/pagos/", {"orden": o1.id, "monto": "10", "forma_pago": "contado",
                              "observacion": "Anticipo unico"}, format="json")
     api.post("/api/pagos/", {"orden": o2.id, "monto": "20", "forma_pago": "contado",
@@ -81,10 +81,11 @@ def test_el_flag_booleano_no_confunde_la_cadena_false(api, usuario):
 @pytest.mark.django_db
 def test_anular_rechaza_motivo_nulo(api):
     orden = crear_orden_con_total()
-    api.force_authenticate(user=usuario_con_rol("reportes"))
+    api.force_authenticate(user=usuario_con_rol("encargada"))
     creado = api.post("/api/pagos/", {"orden": orden.id, "monto": "50", "forma_pago": "contado"},
                       format="json")
 
+    api.force_authenticate(user=usuario_con_rol("admin"))
     resp = api.post(f"/api/pagos/{creado.data['id']}/anular/", {"motivo": None}, format="json")
 
     assert resp.status_code == 400
@@ -94,10 +95,11 @@ def test_anular_rechaza_motivo_nulo(api):
 @pytest.mark.django_db
 def test_anular_rechaza_motivo_no_texto(api):
     orden = crear_orden_con_total()
-    api.force_authenticate(user=usuario_con_rol("reportes"))
+    api.force_authenticate(user=usuario_con_rol("encargada"))
     creado = api.post("/api/pagos/", {"orden": orden.id, "monto": "50", "forma_pago": "contado"},
                       format="json")
 
+    api.force_authenticate(user=usuario_con_rol("admin"))
     resp = api.post(f"/api/pagos/{creado.data['id']}/anular/", {"motivo": 42}, format="json")
 
     assert resp.status_code == 400
@@ -111,7 +113,7 @@ def test_anular_rechaza_motivo_no_texto(api):
 def test_el_listado_de_ordenes_expone_el_saldo_sin_consultar_por_orden(api, usuario):
     cliente = Cliente.objects.create(nombre="Clinica Query")
     orden = crear_orden_con_total(cliente=cliente)
-    api.force_authenticate(user=usuario_con_rol("reportes"))
+    api.force_authenticate(user=usuario_con_rol("encargada"))
     api.post("/api/pagos/", {"orden": orden.id, "monto": "50", "forma_pago": "contado"},
              format="json")
 

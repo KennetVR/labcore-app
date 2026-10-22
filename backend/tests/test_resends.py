@@ -13,7 +13,7 @@ from reportes.models import Reporte
 def delivered(api, settings, tmp_path):
     settings.MEDIA_ROOT = tmp_path
     settings.EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
-    user = get_user_model().objects.create_user(username="sender", rol="reportes")
+    user = get_user_model().objects.create_user(username="sender", rol="encargada")
     api.force_authenticate(user=user)
     order = Orden.objects.create(estado="pdf")
     report = Reporte.objects.create(orden=order)

@@ -11,8 +11,8 @@ def test_api_requiere_autenticacion(api):
 
 
 @pytest.mark.django_db
-def test_crear_y_listar_zonas(api, usuario):
-    api.force_authenticate(user=usuario)
+def test_crear_y_listar_zonas(api, administrador):
+    api.force_authenticate(user=administrador)
     resp = api.post("/api/zonas/", {"nombre": "Lima"}, format="json")
     assert resp.status_code == 201
     assert Zona.objects.count() == 1
@@ -22,8 +22,8 @@ def test_crear_y_listar_zonas(api, usuario):
 
 
 @pytest.mark.django_db
-def test_crear_y_listar_examenes(api, usuario):
-    api.force_authenticate(user=usuario)
+def test_crear_y_listar_examenes(api, administrador):
+    api.force_authenticate(user=administrador)
     payload = {
         "codigo": "HB",
         "nombre": "Hemoglobina",
@@ -49,7 +49,6 @@ def test_calculo_total_orden_con_paquete(api, usuario):
     resp = api.post(
         "/api/ordenes/",
         {
-            "estado": "registrada",
             "items": [
                 {"paquete": paquete.id, "examen": examen.id, "cantidad": 1, "medicion": "unica"}
             ],
@@ -90,7 +89,6 @@ def test_rechaza_orden_si_un_examen_no_tiene_tarifa(api, usuario):
     resp = api.post(
         "/api/ordenes/",
         {
-            "estado": "registrada",
             "items": [{"examen": examen.id, "cantidad": 1, "medicion": "unica"}],
         },
         format="json",
@@ -126,7 +124,6 @@ def test_rechaza_tarifa_zonal_si_la_orden_no_tiene_cliente(api, usuario):
     resp = api.post(
         "/api/ordenes/",
         {
-            "estado": "registrada",
             "items": [{"examen": examen.id, "cantidad": 1, "medicion": "unica"}],
         },
         format="json",

@@ -57,7 +57,9 @@ def test_no_genera_reporte_sin_validar(api):
 
 
 @pytest.mark.django_db
-def test_auxiliar_no_genera_reporte(api, usuario):
+def test_un_rol_fuera_de_la_politica_no_genera_reporte(api, usuario):
+    usuario.rol = "auxiliar"
+    usuario.save()
     api.force_authenticate(user=usuario)
     orden = crear_orden()
 

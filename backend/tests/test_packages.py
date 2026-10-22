@@ -4,8 +4,8 @@ from catalogo.models import Examen, Paquete, PaqueteExamen
 
 
 @pytest.mark.django_db
-def test_crea_paquete_con_examenes_en_orden(api, usuario):
-    api.force_authenticate(user=usuario)
+def test_crea_paquete_con_examenes_en_orden(api, administrador):
+    api.force_authenticate(user=administrador)
     glucosa = Examen.objects.create(codigo="GLU", nombre="Glucosa")
     hemograma = Examen.objects.create(codigo="HEM", nombre="Hemograma")
 
@@ -37,8 +37,8 @@ def test_crea_paquete_con_examenes_en_orden(api, usuario):
 
 
 @pytest.mark.django_db
-def test_actualiza_miembros_del_paquete(api, usuario):
-    api.force_authenticate(user=usuario)
+def test_actualiza_miembros_del_paquete(api, administrador):
+    api.force_authenticate(user=administrador)
     paquete = Paquete.objects.create(nombre="Control", frecuencia="mensual")
     glucosa = Examen.objects.create(codigo="GLU", nombre="Glucosa")
     hemograma = Examen.objects.create(codigo="HEM", nombre="Hemograma")
@@ -57,8 +57,8 @@ def test_actualiza_miembros_del_paquete(api, usuario):
 
 
 @pytest.mark.django_db
-def test_rechaza_examenes_repetidos_o_inexistentes(api, usuario):
-    api.force_authenticate(user=usuario)
+def test_rechaza_examenes_repetidos_o_inexistentes(api, administrador):
+    api.force_authenticate(user=administrador)
     glucosa = Examen.objects.create(codigo="GLU", nombre="Glucosa")
 
     repetido = api.post(
