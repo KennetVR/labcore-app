@@ -7,9 +7,9 @@ Registro de los pagos de las órdenes, saldo pendiente y estado de cuenta por cl
 | Método | Ruta | Quién | Efecto |
 |---|---|---|---|
 | `GET` | `/api/pagos/` | Autenticado | Lista paginada de pagos |
-| `POST` | `/api/pagos/` | `admin`, `encargada`, `reportes` | Registra un pago |
+| `POST` | `/api/pagos/` | `admin`, `encargada` | Registra un pago |
 | `GET` | `/api/pagos/<id>/` | Autenticado | Detalle de un pago |
-| `POST` | `/api/pagos/<id>/anular/` | `admin`, `encargada`, `reportes` | Anula el pago con un motivo |
+| `POST` | `/api/pagos/<id>/anular/` | `admin` | Anula el pago con un motivo |
 | `GET` | `/api/pagos/estado-cuenta/` | Autenticado | Resumen por cliente: facturado, pagado y saldo |
 
 El detalle de la orden incluye `total_pagado`, `saldo` y la lista `pagos`.
@@ -38,7 +38,7 @@ Reglas:
 
 ## Pagos inmutables y anulación
 
-Un pago **no se edita ni se borra**: `PUT` y `PATCH` sobre `/api/pagos/<id>/` devuelven `405` y `DELETE` también. Para corregir un pago mal registrado se anula:
+Un pago **no se edita ni se borra**: `PUT` y `PATCH` sobre `/api/pagos/<id>/` devuelven `405` y `DELETE` también. Para corregir un pago mal registrado se anula. **Solo el administrador anula**; el encargado registra y consulta:
 
 ```json
 POST /api/pagos/<id>/anular/

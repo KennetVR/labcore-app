@@ -18,6 +18,13 @@ Missing/invalid CSRF or a foreign origin returns 403. Invalid credentials (inclu
 inactive users) return 401 with the same generic message. Malformed login payloads
 return 400. GET cannot log in or out. No CSRF exemptions are introduced.
 
+## Roles
+
+`role` is exactly `admin` or `encargada`; the interface labels them
+**Administrador** and **Encargado**. These endpoints do not create users or
+change roles: that is done in Django admin by an `admin`. Any other stored value
+fails closed with 403. The full policy lives in `docs/roles.md`.
+
 ## Development integration
 
 The frontend must use its same-origin `/api` proxy. Host and Origin must remain

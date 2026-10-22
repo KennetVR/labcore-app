@@ -6,12 +6,15 @@ Pantallas de gestión que acompañan al espacio de órdenes: clientes, catálogo
 
 | Módulo | Listado | Alta | Edición / baja |
 |---|---|---|---|
-| Pacientes | Sí, con búsqueda por nombre o DNI | Sí | Sí |
-| Clientes | Sí, con búsqueda por nombre o contacto | Sí | Sí |
-| Catálogo · Exámenes | Sí, con búsqueda por código o nombre | Sí | Sí |
-| Catálogo · Paquetes | Sí, con recuento de exámenes | Sí, con selección de exámenes | Sí |
-| Tarifarios · Exámenes | Sí, con búsqueda | Sí | Sí |
-| Tarifarios · Paquetes | Sí, con búsqueda | Sí | Sí |
+| Pacientes | Sí, con búsqueda por nombre o DNI | Encargado | Encargado edita; solo el administrador elimina |
+| Clientes | Sí, con búsqueda por nombre o contacto | Encargado | Encargado edita; solo el administrador elimina |
+| Catálogo · Exámenes | Sí, con búsqueda por código o nombre | Solo administrador | Solo administrador |
+| Catálogo · Paquetes | Sí, con recuento de exámenes | Solo administrador, con selección de exámenes | Solo administrador |
+| Tarifarios · Exámenes | Sí, con búsqueda | Solo administrador | Solo administrador |
+| Tarifarios · Paquetes | Sí, con búsqueda | Solo administrador | Solo administrador |
+
+El encargado consulta el catálogo y los tarifarios en solo lectura. La política
+completa está en `docs/roles.md`.
 
 Las pantallas usan el CRUD existente (`/api/pacientes/`, `/api/clientes/`, `/api/examenes/`, `/api/paquetes/`) y los endpoints de tarifas (`/api/tarifario-examenes/`, `/api/tarifario-paquetes/`). La edición envía `PATCH` y la baja `DELETE` con confirmación previa.
 

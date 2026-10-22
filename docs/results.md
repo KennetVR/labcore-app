@@ -6,7 +6,7 @@ Captura y validación de resultados por ítem desde el detalle de la orden.
 
 | Método | Ruta | Quién | Efecto |
 |---|---|---|---|
-| `POST` | `/api/ordenes/<id>/resultados/` | Cualquier usuario autenticado | Guarda `resultado` y `bandera` de los ítems enviados |
+| `POST` | `/api/ordenes/<id>/resultados/` | `admin`, `encargada` | Guarda `resultado` y `bandera` de los ítems enviados |
 | `POST` | `/api/ordenes/<id>/validar/` | `admin` y `encargada` | Marca todos los ítems como validados y cierra la captura |
 
 Cuerpo de `resultados/`:
@@ -18,6 +18,7 @@ Cuerpo de `resultados/`:
 ## Reglas
 
 - Solo se aceptan ítems que pertenecen a la orden; cualquier id ajeno devuelve `400` y no guarda nada.
+- Los campos clínicos no se aceptan al crear la orden: `resultado`, `bandera` y `bandera_manual` dentro de `items` devuelven `400` y la orden no se crea. Solo se escriben con esta acción.
 - `resultado` admite hasta 100 caracteres y `bandera` hasta 5.
 - La orden pasa a **En proceso** cuando al menos un ítem tiene resultado y a **Con resultados** cuando todos lo tienen.
 - Una orden **Validada**, **PDF generado** o **Entregada** no admite cambios de resultados (`400`).
