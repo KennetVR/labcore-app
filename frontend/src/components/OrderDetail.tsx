@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
 import type { OrderDetail as Order, OrderItem, EnvioReporte } from '../api/types'
-import { money, orderStates, paymentMethods, paymentRoles } from '../api/types'
+import { money, orderStates, paymentMethods } from '../api/types'
+import { puede } from '../api/permisos'
 
 const measurements: Record<string, string> = { unica: 'Única', pre_post: 'Pre y post' }
 const closedStates = ['validada', 'pdf', 'entregada']
@@ -63,10 +64,17 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
     return () => { cancelled = true }
   }, [order, retry])
 
-  const editable = order !== null && !closedStates.includes(order.estado)
-  const canValidate = role === 'admin' || role === 'encargada'
-  const canReport = role === 'admin' || role === 'encargada' || role === 'reportes'
-  const canPay = paymentRoles.includes(role)
+  const canCapture = puede(role, 'resultados.capturar')
+  const editable = order !== null && !closedStates.includes(order.estado) && canCapture
+  const canValidate = puede(role, 'resultados.validar')
+  const canReport = puede(role, 'reportes.generar')
+  const canDeliver = puede(role, 'reportes.entregar')
+  const canResend = puede(role, 'reportes.reenviar')
+  const canSeeHistory = puede(role, 'reportes.ver')
+  const canPay = puede(role, 'pagos.registrar')
+  const canAnnul = puede(role, 'pagos.anular')
+  const canReopen = puede(role, 'ordenes.reabrir')
+    && order !== null && order.estado === 'validada' && !order.reporte
   const complete = order !== null && order.items.length > 0
     && order.items.every(item => (drafts[item.id]?.resultado ?? '').trim() !== '')
 
@@ -158,6 +166,20 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
     finally { setBusy('') }
   }
 
+  async function reopenOrder() {
+    if (!order) return
+    const motivo = window.prompt('Motivo de la reapertura:')
+    if (motivo === null) return
+    if (!motivo.trim()) { setError('Indique el motivo de la reapertura.'); return }
+    setBusy('reabrir'); setError('')
+    try {
+      load(await api<Order>(`/ordenes/${order.id}/reabrir/`, {
+        method: 'POST', body: JSON.stringify({ motivo: motivo.trim() }),
+      }))
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo reabrir la orden.') }
+    finally { setBusy('') }
+  }
+
   const updateDraft = (itemId: number, field: 'resultado' | 'bandera', value: string) =>
     setDrafts(current => {
       const existing = current[itemId] ?? { resultado: '', bandera: '', banderaManual: false }
@@ -230,8 +252,14 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
           {order.estado === 'validada' && canReport && <button disabled={busy !== ''} onClick={generateReport}>{busy === 'reporte' ? 'Generando…' : 'Generar reporte'}</button>}
           {order.reporte && <a className="button-link" href={order.reporte.pdf_url}>Descargar PDF {order.reporte.numero}</a>}
         </div>}
+        {canReopen && <div className="form-actions">
+          <button className="secondary" disabled={busy !== ''} onClick={reopenOrder}>
+            {busy === 'reabrir' ? 'Reabriendo…' : 'Reabrir para corregir'}
+          </button>
+          <small>La reapertura queda registrada y exige volver a validar.</small>
+        </div>}
       </section>
-      {(order.estado === 'pdf' && order.reporte && canReport) || order.estado === 'entregada' ? <section className="panel detail-panel">
+      {(order.estado === 'pdf' && order.reporte && canDeliver) || order.estado === 'entregada' ? <section className="panel detail-panel">
         <h2>Entrega</h2>
         {order.estado === 'entregada' ? <p>
           Entregada{order.reporte?.entregado_at ? ` el ${new Date(order.reporte.entregado_at).toLocaleString('es-PE')}` : ''}
@@ -249,7 +277,7 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
           </div>
         </>}
       </section> : null}
-      {order.reporte && canReport ? <section className="panel detail-panel">
+      {order.reporte && canSeeHistory ? <section className="panel detail-panel">
         <h2>Historial de envíos</h2>
         {history.length === 0 && order.estado !== 'entregada' ? <p className="empty">Sin envíos registrados.</p> : <div className="table-scroll">
           <table><thead><tr><th>Fecha</th><th>Destinatario</th><th>Estado</th><th>Registrado por</th><th>Reenvío</th></tr></thead>
@@ -261,7 +289,7 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
               <td>{e.reenvio ? 'Sí' : 'No'}</td>
             </tr>)}</tbody></table>
         </div>}
-        {order.estado === 'entregada' && <div className="delivery-form" style={{marginTop: '12px'}}>
+        {order.estado === 'entregada' && canResend && <div className="delivery-form" style={{marginTop: '12px'}}>
           <label>Nuevo correo de entrega (opcional)
             <input type="email" value={resendEmail} onChange={e => setResendEmail(e.target.value)} placeholder="otro@correo.com" />
           </label>
@@ -282,7 +310,7 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
               <td>{p.anulado
                 ? <span className="badge anulado" title={p.motivo_anulacion}>Anulado</span>
                 : <span className="badge validada">Vigente</span>}</td>
-              <td>{canPay && !p.anulado
+              <td>{canAnnul && !p.anulado
                 ? <button className="secondary" disabled={busy !== ''} onClick={() => annulPayment(p.id, order.numero)}>Anular</button>
                 : null}</td>
             </tr>)}</tbody></table>

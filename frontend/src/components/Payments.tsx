@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { allPages, api } from '../api/client'
 import type { AccountStatement, Customer, Order, Payment } from '../api/types'
-import { money, paymentMethods, paymentRoles } from '../api/types'
+import { money, paymentMethods } from '../api/types'
+import { puede } from '../api/permisos'
 
 type Props = { role: string; orders: Order[]; onOpenOrder: (id: number) => void }
 
@@ -16,7 +17,8 @@ export default function Payments({ role, orders, onOpenOrder }: Props) {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
-  const canPay = paymentRoles.includes(role)
+  const canRegister = puede(role, 'pagos.registrar')
+  const canAnnul = puede(role, 'pagos.anular')
 
   function currentQuery() {
     const query = new URLSearchParams()
@@ -103,7 +105,7 @@ export default function Payments({ role, orders, onOpenOrder }: Props) {
     </div>
     {error && <div className="error" role="alert">{error}</div>}
 
-    {canPay && <section className="panel form-panel">
+    {canRegister && <section className="panel form-panel">
       <h2>Registrar pago</h2>
       <form onSubmit={registrar}>
         <div className="field-grid">
@@ -165,7 +167,7 @@ export default function Payments({ role, orders, onOpenOrder }: Props) {
             <td>{p.anulado
               ? <span className="badge anulado" title={p.motivo_anulacion}>Anulado</span>
               : <span className="badge validada">Vigente</span>}</td>
-            <td>{canPay && !p.anulado
+            <td>{canAnnul && !p.anulado
               ? <button className="secondary" disabled={busy} onClick={() => anular(p)}>Anular</button>
               : null}</td>
           </tr>)}</tbody></table>

@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { allPages, api, setCsrfToken } from './api/client'
 import type { Order, Session } from './api/types'
 import { money, orderStates } from './api/types'
+import { roleLabels } from './api/permisos'
 import Catalog from './components/Catalog'
 import Clients from './components/Clients'
 import OrderDetail from './components/OrderDetail'
@@ -100,14 +101,14 @@ export default function App() {
         <button className={view.kind === 'payments' ? 'nav-active' : ''} onClick={() => setView({ kind: 'payments' })}>Pagos</button>
       </nav>
       <p className="sidebar-note">Espacio de trabajo<br />Recepción y laboratorio</p></aside>
-    <div className="workspace-main"><header className="topbar"><span>Gestión de órdenes</span><div><strong>{session.user.name}</strong><small>{session.user.role}</small></div><button className="secondary" disabled={busy} onClick={logout}>Cerrar sesión</button></header>
+    <div className="workspace-main"><header className="topbar"><span>Gestión de órdenes</span><div><strong>{session.user.name}</strong><small>{roleLabels[session.user.role] ?? session.user.role}</small></div><button className="secondary" disabled={busy} onClick={logout}>Cerrar sesión</button></header>
       <main className="content">{error && <div role="alert" className="error">{error} <button className="secondary" onClick={() => { setError(''); refresh(n => n + 1) }}>Reintentar</button></div>}
-        {view.kind === 'tariffs' ? <Tariffs />
+        {view.kind === 'tariffs' ? <Tariffs role={session.user.role} />
           : view.kind === 'payments' ? <Payments role={session.user.role} orders={orders}
             onOpenOrder={id => setView({ kind: 'detail', id })} />
-          : view.kind === 'catalog' ? <Catalog />
-          : view.kind === 'clients' ? <Clients />
-          : view.kind === 'patients' ? <Patients />
+          : view.kind === 'catalog' ? <Catalog role={session.user.role} />
+          : view.kind === 'clients' ? <Clients role={session.user.role} />
+          : view.kind === 'patients' ? <Patients role={session.user.role} />
           : view.kind === 'form' ? <OrderForm key={view.key} onCancel={() => setView({ kind: 'list' })}
           onSaved={() => { setView(current => current.kind === 'form' && current.key === view.key ? { kind: 'list' } : current); refresh(n => n + 1) }} />
           : view.kind === 'detail' ? <OrderDetail key={view.id} id={view.id} role={session.user.role} onBack={() => setView({ kind: 'list' })} />

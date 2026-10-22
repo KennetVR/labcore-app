@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { allPages, api } from '../api/client'
 import type { Exam, Package } from '../api/types'
+import { puede } from '../api/permisos'
 
 const areas: Record<string, string> = { sangre: 'Sangre', aguas: 'Aguas' }
 const resultTypes: Record<string, string> = { numerico: 'Numérico', texto: 'Texto' }
@@ -117,7 +118,7 @@ function PackageForm({ exams, pkg, onCancel, onSaved }: {
   </form>
 }
 
-export default function Catalog() {
+export default function Catalog({ role }: { role: string }) {
   const [exams, setExams] = useState<Exam[]>([])
   const [packages, setPackages] = useState<Package[]>([])
   const [loading, setLoading] = useState(true)
@@ -126,6 +127,7 @@ export default function Catalog() {
   const [tab, setTab] = useState<'exams' | 'packages'>('exams')
   const [editor, setEditor] = useState<Editor | null>(null)
   const [revision, refresh] = useState(0)
+  const canEdit = puede(role, 'catalogo.editar')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -150,10 +152,10 @@ export default function Catalog() {
 
   return <>
     <div className="page-heading"><div><p className="eyebrow">CATÁLOGO</p><h1>Catálogo</h1><p>Exámenes y paquetes disponibles para las órdenes.</p></div>
-      {!editor && <button onClick={() => setEditor({ kind: tab === 'exams' ? 'exam' : 'package' })}>{tab === 'exams' ? 'Nuevo examen' : 'Nuevo paquete'}</button>}</div>
+      {canEdit && !editor && <button onClick={() => setEditor({ kind: tab === 'exams' ? 'exam' : 'package' })}>{tab === 'exams' ? 'Nuevo examen' : 'Nuevo paquete'}</button>}</div>
     {error && <div className="error" role="alert">{error} <button className="secondary" onClick={() => { setError(''); refresh(n => n + 1) }}>Reintentar</button></div>}
-    {editor?.kind === 'exam' ? <ExamForm exam={editor.value} onCancel={() => setEditor(null)} onSaved={() => { setEditor(null); refresh(n => n + 1) }} />
-      : editor?.kind === 'package' ? <PackageForm exams={exams} pkg={editor.value} onCancel={() => setEditor(null)} onSaved={() => { setEditor(null); refresh(n => n + 1) }} />
+    {canEdit && editor?.kind === 'exam' ? <ExamForm exam={editor.value} onCancel={() => setEditor(null)} onSaved={() => { setEditor(null); refresh(n => n + 1) }} />
+      : canEdit && editor?.kind === 'package' ? <PackageForm exams={exams} pkg={editor.value} onCancel={() => setEditor(null)} onSaved={() => { setEditor(null); refresh(n => n + 1) }} />
       : <>
       <div className="tabs" role="tablist">
         <button role="tab" aria-selected={tab === 'exams'} className={tab === 'exams' ? 'nav-active' : ''} onClick={() => setTab('exams')}>Exámenes</button>
@@ -164,12 +166,12 @@ export default function Catalog() {
         {loading ? <p role="status" className="empty">Cargando catálogo…</p> : tab === 'exams' ? <>
           <div className="table-scroll"><table><thead><tr><th>Código</th><th>Nombre</th><th>Área</th><th>Tipo</th><th>Unidad</th><th>Estado</th><th></th></tr></thead>
             <tbody>{visibleExams.map(e => <tr key={e.id}><td><strong>{e.codigo}</strong></td><td>{e.nombre}</td><td>{areas[e.area] || e.area}</td><td>{resultTypes[e.resultado_tipo] || e.resultado_tipo}</td><td>{e.unidad || '—'}</td><td><span className={`badge ${e.activo ? 'validada' : ''}`}>{e.activo ? 'Activo' : 'Inactivo'}</span></td>
-              <td className="row-actions"><button className="link" onClick={() => setEditor({ kind: 'exam', value: e })}>Editar</button><button className="link danger" onClick={() => remove(`examenes/${e.id}`, `el examen ${e.codigo}`)}>Eliminar</button></td></tr>)}</tbody></table></div>
+              <td className="row-actions">{canEdit && <><button className="link" onClick={() => setEditor({ kind: 'exam', value: e })}>Editar</button><button className="link danger" onClick={() => remove(`examenes/${e.id}`, `el examen ${e.codigo}`)}>Eliminar</button></>}</td></tr>)}</tbody></table></div>
           {visibleExams.length === 0 && <p className="empty">No hay exámenes para mostrar.</p>}
           <p className="table-footer">{visibleExams.length} de {exams.length} exámenes</p></> : <>
           <div className="table-scroll"><table><thead><tr><th>Paquete</th><th>Frecuencia</th><th>Exámenes</th><th>Estado</th><th></th></tr></thead>
             <tbody>{visiblePackages.map(p => <tr key={p.id}><td><strong>{p.nombre}</strong></td><td>{frequencies[p.frecuencia] || p.frecuencia}</td><td>{p.examenes.length} exámenes</td><td><span className={`badge ${p.activo ? 'validada' : ''}`}>{p.activo ? 'Activo' : 'Inactivo'}</span></td>
-              <td className="row-actions"><button className="link" onClick={() => setEditor({ kind: 'package', value: p })}>Editar</button><button className="link danger" onClick={() => remove(`paquetes/${p.id}`, `el paquete ${p.nombre}`)}>Eliminar</button></td></tr>)}</tbody></table></div>
+              <td className="row-actions">{canEdit && <><button className="link" onClick={() => setEditor({ kind: 'package', value: p })}>Editar</button><button className="link danger" onClick={() => remove(`paquetes/${p.id}`, `el paquete ${p.nombre}`)}>Eliminar</button></>}</td></tr>)}</tbody></table></div>
           {visiblePackages.length === 0 && <p className="empty">No hay paquetes para mostrar.</p>}
           <p className="table-footer">{visiblePackages.length} de {packages.length} paquetes</p></>}
       </section></>}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { allPages, api } from '../api/client'
 import type { Customer, Exam, ExamTariff, Package, PackageTariff, Zone } from '../api/types'
+import { puede } from '../api/permisos'
 
 const money = (price: string) => `S/ ${Number(price).toFixed(2)}`
 
@@ -73,7 +74,7 @@ function TariffForm({ mode, recordId, draft, exams, packages, zones, clients, on
   </form>
 }
 
-export default function Tariffs() {
+export default function Tariffs({ role }: { role: string }) {
   const [exams, setExams] = useState<Exam[]>([])
   const [packages, setPackages] = useState<Package[]>([])
   const [zones, setZones] = useState<Zone[]>([])
@@ -86,6 +87,7 @@ export default function Tariffs() {
   const [tab, setTab] = useState<'exams' | 'packages'>('exams')
   const [editor, setEditor] = useState<{ id: number; draft: Draft } | 'new' | null>(null)
   const [revision, refresh] = useState(0)
+  const canEdit = puede(role, 'tarifas.editar')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -133,9 +135,9 @@ export default function Tariffs() {
 
   return <>
     <div className="page-heading"><div><p className="eyebrow">PRECIOS</p><h1>Tarifarios</h1><p>Precios por examen y paquete, con alcance por zona o cliente.</p></div>
-      {!editor && <button onClick={() => setEditor('new')}>Nueva tarifa</button>}</div>
+      {canEdit && !editor && <button onClick={() => setEditor('new')}>Nueva tarifa</button>}</div>
     {error && <div className="error" role="alert">{error} <button className="secondary" onClick={() => { setError(''); refresh(n => n + 1) }}>Reintentar</button></div>}
-    {editor ? <TariffForm mode={tab} recordId={editingId} draft={draft} exams={exams} packages={packages} zones={zones} clients={clients}
+    {canEdit && editor ? <TariffForm mode={tab} recordId={editingId} draft={draft} exams={exams} packages={packages} zones={zones} clients={clients}
       onCancel={() => setEditor(null)} onSaved={() => { setEditor(null); refresh(n => n + 1) }} /> : <>
       <div className="tabs" role="tablist">
         <button role="tab" aria-selected={tab === 'exams'} className={tab === 'exams' ? 'nav-active' : ''} onClick={() => setTab('exams')}>Exámenes</button>
@@ -146,12 +148,12 @@ export default function Tariffs() {
         {loading ? <p role="status" className="empty">Cargando tarifarios…</p> : tab === 'exams' ? <>
           <div className="table-scroll"><table><thead><tr><th>Examen</th><th>Precio</th><th>Zona</th><th>Cliente</th><th>Vigencia</th><th>Estado</th><th></th></tr></thead>
             <tbody>{visibleExams.map(t => <tr key={t.id}><td><strong>{t.examen_codigo} - {t.examen_nombre}</strong></td><td>{money(t.precio)}</td><td>{scope(t.zona_nombre)}</td><td>{scope(t.cliente_nombre)}</td><td>{t.vigencia_desde ?? '—'}</td><td><span className={`badge ${t.activo ? 'validada' : ''}`}>{t.activo ? 'Activa' : 'Inactiva'}</span></td>
-              <td className="row-actions"><button className="link" onClick={() => setEditor({ id: t.id, draft: draftFromExam(t) })}>Editar</button><button className="link danger" onClick={() => remove(t.id, t.examen_nombre)}>Eliminar</button></td></tr>)}</tbody></table></div>
+              <td className="row-actions">{canEdit && <><button className="link" onClick={() => setEditor({ id: t.id, draft: draftFromExam(t) })}>Editar</button><button className="link danger" onClick={() => remove(t.id, t.examen_nombre)}>Eliminar</button></>}</td></tr>)}</tbody></table></div>
           {visibleExams.length === 0 && <p className="empty">No hay tarifas de exámenes.</p>}
           <p className="table-footer">{visibleExams.length} de {examTariffs.length} tarifas</p></> : <>
           <div className="table-scroll"><table><thead><tr><th>Paquete</th><th>Precio</th><th>Zona</th><th>Cliente</th><th>Vigencia</th><th>Estado</th><th></th></tr></thead>
             <tbody>{visiblePackages.map(t => <tr key={t.id}><td><strong>{t.paquete_nombre}</strong></td><td>{money(t.precio)}</td><td>{scope(t.zona_nombre)}</td><td>{scope(t.cliente_nombre)}</td><td>{t.vigencia_desde ?? '—'}</td><td><span className={`badge ${t.activo ? 'validada' : ''}`}>{t.activo ? 'Activa' : 'Inactiva'}</span></td>
-              <td className="row-actions"><button className="link" onClick={() => setEditor({ id: t.id, draft: draftFromPackage(t) })}>Editar</button><button className="link danger" onClick={() => remove(t.id, t.paquete_nombre)}>Eliminar</button></td></tr>)}</tbody></table></div>
+              <td className="row-actions">{canEdit && <><button className="link" onClick={() => setEditor({ id: t.id, draft: draftFromPackage(t) })}>Editar</button><button className="link danger" onClick={() => remove(t.id, t.paquete_nombre)}>Eliminar</button></>}</td></tr>)}</tbody></table></div>
           {visiblePackages.length === 0 && <p className="empty">No hay tarifas de paquetes.</p>}
           <p className="table-footer">{visiblePackages.length} de {packageTariffs.length} tarifas</p></>}
       </section></>}

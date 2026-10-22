@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { allPages, api } from '../api/client'
 import type { Customer, Zone } from '../api/types'
+import { puede } from '../api/permisos'
 
 const types: Record<string, string> = { clinica: 'Clínica / Consultorio', dialisis: 'Centro de diálisis' }
 
@@ -52,7 +53,7 @@ function ClientForm({ zones, client, onCancel, onSaved }: {
   </form>
 }
 
-export default function Clients() {
+export default function Clients({ role }: { role: string }) {
   const [clients, setClients] = useState<Customer[]>([])
   const [zones, setZones] = useState<Zone[]>([])
   const [loading, setLoading] = useState(true)
@@ -60,6 +61,8 @@ export default function Clients() {
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<Customer | 'new' | null>(null)
   const [revision, refresh] = useState(0)
+  const canEdit = puede(role, 'clientes.editar')
+  const canDelete = puede(role, 'clientes.eliminar')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -83,15 +86,15 @@ export default function Clients() {
 
   return <>
     <div className="page-heading"><div><p className="eyebrow">CARTERA</p><h1>Clientes</h1><p>Clínicas, consultorios y centros de diálisis.</p></div>
-      {!editing && <button onClick={() => setEditing('new')}>Nuevo cliente</button>}</div>
+      {canEdit && !editing && <button onClick={() => setEditing('new')}>Nuevo cliente</button>}</div>
     {error && <div className="error" role="alert">{error} <button className="secondary" onClick={() => { setError(''); refresh(n => n + 1) }}>Reintentar</button></div>}
-    {editing ? <ClientForm zones={zones} client={editing === 'new' ? undefined : editing}
+    {canEdit && editing ? <ClientForm zones={zones} client={editing === 'new' ? undefined : editing}
       onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(n => n + 1) }} /> : <section className="panel">
       <div className="filters"><label>Buscar<input value={query} onChange={e => setQuery(e.target.value)} placeholder="Nombre o contacto" /></label></div>
       {loading ? <p role="status" className="empty">Cargando clientes…</p> : <>
         <div className="table-scroll"><table><thead><tr><th>Cliente</th><th>Tipo</th><th>Zona</th><th>Contacto</th><th>Estado</th><th></th></tr></thead>
           <tbody>{visible.map(c => <tr key={c.id}><td><strong>{c.nombre}</strong></td><td>{types[c.tipo] || c.tipo}</td><td>{zoneName(c.zona)}</td><td>{c.contacto || '—'}</td><td><span className={`badge ${c.activo ? 'validada' : ''}`}>{c.activo ? 'Activo' : 'Inactivo'}</span></td>
-            <td className="row-actions"><button className="link" onClick={() => setEditing(c)}>Editar</button><button className="link danger" onClick={() => remove(c)}>Eliminar</button></td></tr>)}</tbody></table></div>
+            <td className="row-actions">{canEdit && <button className="link" onClick={() => setEditing(c)}>Editar</button>}{canDelete && <button className="link danger" onClick={() => remove(c)}>Eliminar</button>}</td></tr>)}</tbody></table></div>
         {visible.length === 0 && <p className="empty">No hay clientes para mostrar.</p>}
         <p className="table-footer">{visible.length} de {clients.length} clientes</p></>}
     </section>}
