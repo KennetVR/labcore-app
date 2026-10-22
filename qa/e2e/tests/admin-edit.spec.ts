@@ -7,7 +7,7 @@ async function mock(page: Page, resources: string[], handler: (path: string, met
   await page.route(new RegExp(`/api/(auth|${resources.join('|')})/`), async route => {
     const path = new URL(route.request().url()).pathname
     if (path === '/api/auth/session/') {
-      return route.fulfill({ json: { user: { id: 1, username: 'qa', name: 'QA', role: 'auxiliar' }, csrf_token: 'test' } })
+      return route.fulfill({ json: { user: { id: 1, username: 'qa', name: 'QA', role: 'admin' }, csrf_token: 'test' } })
     }
     const reply = handler(path, route.request().method(), route.request().postDataJSON())
     if (reply) return route.fulfill({ status: reply.status ?? 200, json: reply.json ?? {} })

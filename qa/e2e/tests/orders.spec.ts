@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 test('sign in, quote a package once, invalidate stale quote, and save', async ({ page }) => {
   let signedIn = false
   let saved = false
-  const user = { id: 1, username: 'qa', name: 'QA', role: 'auxiliar' }
+  const user = { id: 1, username: 'qa', name: 'QA', role: 'encargada' }
   await page.route(/\/api\/(auth|ordenes|pacientes|clientes|examenes|paquetes)\//, async route => {
     const url = new URL(route.request().url())
     const path = url.pathname

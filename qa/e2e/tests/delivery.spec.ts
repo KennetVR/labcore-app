@@ -12,7 +12,7 @@ async function openOrder(page: import('@playwright/test').Page, entregada: (envi
     const path = new URL(route.request().url()).pathname
     const method = route.request().method()
     if (path === '/api/auth/session/') {
-      return route.fulfill({ json: { user: { id: 9, username: 'jefa', name: 'Jefa', role: 'reportes' }, csrf_token: 'test' } })
+      return route.fulfill({ json: { user: { id: 9, username: 'jefa', name: 'Jefa', role: 'encargada' }, csrf_token: 'test' } })
     }
     if (path === '/api/ordenes/5/entrega/' && method === 'POST') {
       const body = route.request().postDataJSON() as { enviado_a: string }
