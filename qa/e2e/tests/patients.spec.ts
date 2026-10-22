@@ -16,7 +16,7 @@ test('list patients and register a new one', async ({ page }) => {
   await page.route(/\/api\/(auth|pacientes|clientes)\//, async route => {
     const path = new URL(route.request().url()).pathname
     if (path === '/api/auth/session/') {
-      return route.fulfill({ json: { user: { id: 1, username: 'qa', name: 'QA', role: 'auxiliar' }, csrf_token: 'test' } })
+      return route.fulfill({ json: { user: { id: 1, username: 'qa', name: 'QA', role: 'encargada' }, csrf_token: 'test' } })
     }
     if (path === '/api/pacientes/' && route.request().method() === 'POST') {
       expect(route.request().headers()['x-csrftoken']).toBe('test')

@@ -6,7 +6,7 @@ Generación del informe de resultados en PDF para órdenes validadas, con códig
 
 | Método | Ruta | Quién | Efecto |
 |---|---|---|---|
-| `POST` | `/api/ordenes/<id>/reporte/` | `admin`, `encargada`, `reportes` | Genera el PDF y pasa la orden a **PDF generado** |
+| `POST` | `/api/ordenes/<id>/reporte/` | `admin`, `encargada` | Genera el PDF y pasa la orden a **PDF generado** |
 | `GET` | `/api/reportes/<id>/` | Autenticado | Metadatos del reporte |
 | `GET` | `/api/reportes/<id>/pdf/` | Autenticado | Descarga el PDF adjunto |
 
@@ -30,7 +30,7 @@ Se agregó `reportlab~=4.2` a `requirements.txt` para construir el PDF. El QR us
 
 | Método | Ruta | Quién | Efecto |
 |---|---|---|---|
-| `POST` | `/api/ordenes/<id>/entrega/` | `admin`, `encargada`, `reportes` | Envía el PDF por correo (opcional) y registra la entrega |
+| `POST` | `/api/ordenes/<id>/entrega/` | `admin`, `encargada` | Envía el PDF por correo (opcional) y registra la entrega |
 
 Cuerpo: `{ "enviado_a": "paciente@correo.com" }`. El correo es opcional: vacío registra una entrega en mano.
 
@@ -48,8 +48,8 @@ Reglas:
 
 | Método | Ruta | Quién | Efecto |
 |---|---|---|---|
-| `POST` | `/api/ordenes/<id>/reenviar/` | `admin`, `encargada`, `reportes` | Reenvía el PDF a un correo (o registra reenvío en mano) |
-| `GET` | `/api/ordenes/<id>/envios/` | `admin`, `encargada`, `reportes` | Lista el historial de envíos (paginado) |
+| `POST` | `/api/ordenes/<id>/reenviar/` | `admin`, `encargada` | Reenvía el PDF a un correo (o registra reenvío en mano) |
+| `GET` | `/api/ordenes/<id>/envios/` | `admin`, `encargada` | Lista el historial de envíos (paginado) |
 
 Cuerpo del reenvío: `{ "enviado_a": "otro@correo.com", "solicitud": "<uuid>" }`. El campo `solicitud` es obligatorio y garantiza idempotencia: repetir la misma `solicitud` no envía dos veces; cambiar el correo en una `solicitud` ya usada devuelve `409`. El correo es opcional: vacío registra un reenvío en mano.
 

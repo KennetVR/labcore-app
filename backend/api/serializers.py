@@ -255,6 +255,21 @@ class OrdenItemSerializer(serializers.ModelSerializer):
     def get_rango_estado(self, obj):
         return estado_rango(obj.examen, obj.resultado)
 
+    CAMPOS_CLINICOS = ("resultado", "bandera", "bandera_manual")
+
+    def run_validation(self, data=serializers.empty):
+        # Los campos clínicos solo se escriben con la acción `resultados`.
+        if isinstance(data, dict):
+            clinicos = [campo for campo in self.CAMPOS_CLINICOS if campo in data]
+            if clinicos:
+                raise serializers.ValidationError(
+                    {
+                        campo: "Los resultados se registran con la acción resultados."
+                        for campo in clinicos
+                    }
+                )
+        return super().run_validation(data)
+
     def validate(self, attrs):
         paquete = attrs.get("paquete")
         if paquete and not paquete.examenes_compuestos.filter(examen=attrs["examen"]).exists():
@@ -284,7 +299,13 @@ class OrdenItemSerializer(serializers.ModelSerializer):
             "validado_por",
             "validado_at",
         ]
-        read_only_fields = ["validado_por", "validado_at"]
+        read_only_fields = [
+            "resultado",
+            "bandera",
+            "bandera_manual",
+            "validado_por",
+            "validado_at",
+        ]
 
 
 class PagoSerializer(serializers.ModelSerializer):
@@ -298,6 +319,26 @@ class PagoSerializer(serializers.ModelSerializer):
     saldo = serializers.SerializerMethodField()
     registrado_por_nombre = serializers.SerializerMethodField()
     anulado_por_nombre = serializers.SerializerMethodField()
+
+    CAMPOS_DE_ANULACION = (
+        "anulado",
+        "anulado_por",
+        "anulado_at",
+        "motivo_anulacion",
+    )
+
+    def run_validation(self, data=serializers.empty):
+        # La anulación tiene su propia acción, que exige motivo y deja rastro.
+        if isinstance(data, dict):
+            campos = [campo for campo in self.CAMPOS_DE_ANULACION if campo in data]
+            if campos:
+                raise serializers.ValidationError(
+                    {
+                        campo: "La anulación se registra con la acción anular."
+                        for campo in campos
+                    }
+                )
+        return super().run_validation(data)
 
     def get_orden_total(self, obj):
         total = obj.orden.calcular_total()
@@ -403,7 +444,7 @@ class OrdenSerializer(serializers.ModelSerializer):
             "pagos",
             "reporte",
         ]
-        read_only_fields = ["numero", "fecha", "creado_por"]
+        read_only_fields = ["numero", "fecha", "creado_por", "estado"]
 
     def get_total(self, obj):
         total = self._total_de(obj)
@@ -449,6 +490,10 @@ class OrdenSerializer(serializers.ModelSerializer):
         }
 
     def validate(self, attrs):
+        if "estado" in self.initial_data:
+            raise serializers.ValidationError(
+                {"estado": "El estado se modifica solo con las acciones del flujo."}
+            )
         attrs = super().validate(attrs)
         self.quotation = self.quote(attrs)
         return attrs

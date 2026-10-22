@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { allPages, api } from '../api/client'
 import type { Customer, Patient } from '../api/types'
+import { puede } from '../api/permisos'
 
 const sexes: Record<string, string> = { M: 'Masculino', F: 'Femenino' }
 
@@ -56,7 +57,7 @@ function PatientForm({ customers, patient, onCancel, onSaved }: {
   </form>
 }
 
-export default function Patients() {
+export default function Patients({ role }: { role: string }) {
   const [patients, setPatients] = useState<Patient[]>([])
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
@@ -64,6 +65,8 @@ export default function Patients() {
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<Patient | 'new' | null>(null)
   const [revision, refresh] = useState(0)
+  const canEdit = puede(role, 'pacientes.editar')
+  const canDelete = puede(role, 'pacientes.eliminar')
 
   useEffect(() => {
     const controller = new AbortController()
@@ -87,15 +90,15 @@ export default function Patients() {
 
   return <>
     <div className="page-heading"><div><p className="eyebrow">PADRÓN</p><h1>Pacientes</h1><p>Consulte y registre pacientes del laboratorio.</p></div>
-      {!editing && <button onClick={() => setEditing('new')}>Nuevo paciente</button>}</div>
+      {canEdit && !editing && <button onClick={() => setEditing('new')}>Nuevo paciente</button>}</div>
     {error && <div className="error" role="alert">{error} <button className="secondary" onClick={() => { setError(''); refresh(n => n + 1) }}>Reintentar</button></div>}
-    {editing ? <PatientForm customers={customers} patient={editing === 'new' ? undefined : editing}
+    {canEdit && editing ? <PatientForm customers={customers} patient={editing === 'new' ? undefined : editing}
       onCancel={() => setEditing(null)} onSaved={() => { setEditing(null); refresh(n => n + 1) }} /> : <section className="panel">
       <div className="filters"><label>Buscar<input value={query} onChange={e => setQuery(e.target.value)} placeholder="Nombre o DNI" /></label></div>
       {loading ? <p role="status" className="empty">Cargando pacientes…</p> : <>
         <div className="table-scroll"><table><thead><tr><th>Paciente</th><th>DNI</th><th>Sexo</th><th>Nacimiento</th><th>Cliente</th><th></th></tr></thead>
           <tbody>{visible.map(p => <tr key={p.id}><td><strong>{p.nombre_completo}</strong></td><td>{p.dni || '—'}</td><td>{p.sexo ? sexes[p.sexo] ?? p.sexo : '—'}</td><td>{p.fecha_nacimiento || '—'}</td><td>{customerName(p.cliente)}</td>
-            <td className="row-actions"><button className="link" onClick={() => setEditing(p)}>Editar</button><button className="link danger" onClick={() => remove(p)}>Eliminar</button></td></tr>)}</tbody></table></div>
+            <td className="row-actions">{canEdit && <button className="link" onClick={() => setEditing(p)}>Editar</button>}{canDelete && <button className="link danger" onClick={() => remove(p)}>Eliminar</button>}</td></tr>)}</tbody></table></div>
         {visible.length === 0 && <p className="empty">No hay pacientes para mostrar.</p>}
         <p className="table-footer">{visible.length} de {patients.length} pacientes</p></>}
     </section>}

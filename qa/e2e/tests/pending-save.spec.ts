@@ -6,7 +6,7 @@ test('pending save cannot discard a later draft', async ({ page }) => {
   await page.route(/\/api\/(auth|ordenes|pacientes|clientes|examenes|paquetes)\//, async route => {
     const path = new URL(route.request().url()).pathname
     if (path.includes('/auth/')) return route.fulfill({ json: {
-      user: { id: 1, name: 'QA', role: 'auxiliar' }, csrf_token: 'test',
+      user: { id: 1, name: 'QA', role: 'encargada' }, csrf_token: 'test',
     } })
     if (path.endsWith('/cotizar/')) return route.fulfill({ json: {
       items: [{ precio_unitario: '1.00', subtotal: '1.00' }], total: '1.00',

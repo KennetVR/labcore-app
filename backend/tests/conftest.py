@@ -10,4 +10,14 @@ def api():
 
 @pytest.fixture
 def usuario(db):
-    return get_user_model().objects.create_user(username="qa", password="qa-pass-2026")
+    """Persona operativa: el encargado del laboratorio."""
+    return get_user_model().objects.create_user(
+        username="qa", password="qa-pass-2026", rol="encargada"
+    )
+
+
+@pytest.fixture
+def administrador(db):
+    return get_user_model().objects.create_user(
+        username="admin-qa", password="qa-pass-2026", rol="admin"
+    )

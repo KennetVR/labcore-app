@@ -37,7 +37,10 @@ npx playwright test            # inicia el frontend y corre las pruebas
 ## Checklist de QA
 
 - [ ] API responde 401/403 sin sesión
-- [ ] Solo `encargada` puede validar/autotorizar resultados
+- [ ] Solo `admin` y `encargada` operan; cualquier otro rol recibe 403
+- [ ] El encargado valida resultados, genera/entrega reportes y registra pagos
+- [ ] El encargado no edita catálogo ni tarifarios, no elimina y no anula pagos
+- [ ] El administrador reabre una orden validada con motivo y queda en bitácora
 - [ ] No se genera PDF sin orden validada
 - [ ] `calcular_total` correcto con tarifario por zona/cliente y por vigencia
 - [ ] CSV de analizador valida contra valores de referencia y reporta errores

@@ -20,7 +20,7 @@ const statement = [
   { cliente_id: 3, cliente: 'Clínica San Juan', facturado: '200.00', pagado: '50.00', saldo: '150.00' },
 ]
 
-async function mockear(page: import('@playwright/test').Page, rol = 'reportes') {
+async function mockear(page: import('@playwright/test').Page, rol = 'encargada') {
   const guardados: unknown[] = []
   const anulados: { id: number; motivo: string }[] = []
   await page.route(/\/api\/(auth|ordenes|pagos|clientes)\//, async route => {
@@ -93,7 +93,7 @@ test('registra un pago desde la pantalla de pagos', async ({ page }) => {
 })
 
 test('anula un pago indicando el motivo', async ({ page }) => {
-  const { anulados } = await mockear(page)
+  const { anulados } = await mockear(page, 'admin')
   await page.goto('/')
   await page.getByRole('button', { name: 'Órdenes' }).waitFor()
   await page.getByRole('button', { name: 'Pagos' }).click()
@@ -104,7 +104,17 @@ test('anula un pago indicando el motivo', async ({ page }) => {
   await expect.poll(() => anulados).toEqual([{ id: 1, motivo: 'Monto mal tipeado' }])
 })
 
-test('el rol auxiliar no ve el formulario ni el boton de anular', async ({ page }) => {
+test('el encargado registra pagos pero no ve el boton de anular', async ({ page }) => {
+  await mockear(page, 'encargada')
+  await page.goto('/')
+  await page.getByRole('button', { name: 'Órdenes' }).waitFor()
+  await page.getByRole('button', { name: 'Pagos' }).click()
+
+  await expect(page.getByRole('button', { name: 'Registrar pago' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Anular' })).toHaveCount(0)
+})
+
+test('un rol fuera de la politica no ve el formulario ni el boton de anular', async ({ page }) => {
   await mockear(page, 'auxiliar')
   await page.goto('/')
   await page.getByRole('button', { name: 'Órdenes' }).waitFor()

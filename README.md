@@ -78,6 +78,13 @@ cd ..\qa\e2e
 npx playwright test
 ```
 
+## Roles
+
+Solo existen dos roles: **Administrador** (`admin`) y **Encargado** (`encargada`).
+El encargado completa la operación diaria; el administrador configura, autoriza,
+audita y gestiona usuarios. La matriz completa y los invariantes de estados,
+resultados y pagos están en [`docs/roles.md`](docs/roles.md).
+
 ## Seguridad
 
 - `DEBUG=False` y `ALLOWED_HOSTS` restringidos en producción; CORS solo para

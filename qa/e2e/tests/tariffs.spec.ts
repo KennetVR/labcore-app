@@ -10,7 +10,7 @@ test('list tariffs and register an exam tariff', async ({ page }) => {
   await page.route(/\/api\/(auth|tarifario-examenes|tarifario-paquetes|examenes|paquetes|zonas|clientes)\//, async route => {
     const path = new URL(route.request().url()).pathname
     if (path === '/api/auth/session/') {
-      return route.fulfill({ json: { user: { id: 1, username: 'qa', name: 'QA', role: 'auxiliar' }, csrf_token: 'test' } })
+      return route.fulfill({ json: { user: { id: 1, username: 'qa', name: 'QA', role: 'admin' }, csrf_token: 'test' } })
     }
     if (path === '/api/tarifario-examenes/' && route.request().method() === 'POST') {
       expect(route.request().postDataJSON()).toEqual({

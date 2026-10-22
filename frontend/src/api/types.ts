@@ -19,4 +19,3 @@ export type Quote = { items: { precio_unitario: string; subtotal: string }[]; to
 export const money = (value: string) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(Number(value))
 export const orderStates: Record<string, string> = { registrada: 'Registrada', en_proceso: 'En proceso', resultada: 'Con resultados', validada: 'Validada', pdf: 'PDF generado', entregada: 'Entregada' }
 export const paymentMethods: Record<string, string> = { contado: 'Contado', boleta: 'Boleta', factura: 'Factura' }
-export const paymentRoles = ['admin', 'encargada', 'reportes']

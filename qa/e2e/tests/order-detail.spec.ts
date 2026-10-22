@@ -29,7 +29,7 @@ test('open an order detail and return to the list', async ({ page }) => {
   await page.route(/\/api\/(auth|ordenes)\//, async route => {
     const path = new URL(route.request().url()).pathname
     if (path === '/api/auth/session/') {
-      return route.fulfill({ json: { user: { id: 1, username: 'qa', name: 'QA', role: 'auxiliar' }, csrf_token: 'test' } })
+      return route.fulfill({ json: { user: { id: 1, username: 'qa', name: 'QA', role: 'encargada' }, csrf_token: 'test' } })
     }
     if (path === '/api/ordenes/1/') return route.fulfill({ json: order })
     const results = path === '/api/ordenes/' ? [{ id: 1, numero: 'ORD-1', paciente_nombre: 'Demo Patient', cliente_nombre: 'Demo Clinic', fecha: '2026-10-20', estado: 'registrada', total: '30.00' }] : []

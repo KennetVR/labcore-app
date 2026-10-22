@@ -32,9 +32,9 @@ def usuario_con_rol(rol):
 
 @pytest.fixture
 def cobrador(db):
-    """Rol con permiso para registrar y anular pagos."""
+    """Encargado: registra pagos; la anulación queda reservada al administrador."""
     return get_user_model().objects.create_user(
-        username="cobrador", password="qa-pass-2026", rol="reportes"
+        username="cobrador", password="qa-pass-2026", rol="encargada"
     )
 
 
@@ -183,7 +183,7 @@ def test_un_pago_no_se_puede_editar_ni_borrar(api, cobrador):
 
 
 @pytest.mark.django_db
-def test_anula_un_pago_con_motivo(api, cobrador):
+def test_anula_un_pago_con_motivo(api, cobrador, administrador):
     orden = crear_orden_con_total()
     api.force_authenticate(user=cobrador)
     creado = api.post(
@@ -191,6 +191,7 @@ def test_anula_un_pago_con_motivo(api, cobrador):
     )
     pago_id = creado.data["id"]
 
+    api.force_authenticate(user=administrador)
     resp = api.post(
         f"/api/pagos/{pago_id}/anular/", {"motivo": "Monto mal tipeado"}, format="json"
     )
@@ -198,20 +199,21 @@ def test_anula_un_pago_con_motivo(api, cobrador):
     assert resp.status_code == 200
     assert resp.data["anulado"] is True
     assert resp.data["motivo_anulacion"] == "Monto mal tipeado"
-    assert resp.data["anulado_por_nombre"] == cobrador.username
+    assert resp.data["anulado_por_nombre"] == administrador.username
     assert resp.data["anulado_at"] is not None
     pago = Pago.objects.get(pk=pago_id)
     assert pago.anulado is True
 
 
 @pytest.mark.django_db
-def test_anular_exige_motivo(api, cobrador):
+def test_anular_exige_motivo(api, cobrador, administrador):
     orden = crear_orden_con_total()
     api.force_authenticate(user=cobrador)
     creado = api.post(
         "/api/pagos/", {"orden": orden.id, "monto": "50", "forma_pago": "contado"}, format="json"
     )
 
+    api.force_authenticate(user=administrador)
     resp = api.post(f"/api/pagos/{creado.data['id']}/anular/", {}, format="json")
 
     assert resp.status_code == 400
@@ -219,12 +221,13 @@ def test_anular_exige_motivo(api, cobrador):
 
 
 @pytest.mark.django_db
-def test_no_se_anula_dos_veces(api, cobrador):
+def test_no_se_anula_dos_veces(api, cobrador, administrador):
     orden = crear_orden_con_total()
     api.force_authenticate(user=cobrador)
     creado = api.post(
         "/api/pagos/", {"orden": orden.id, "monto": "50", "forma_pago": "contado"}, format="json"
     )
+    api.force_authenticate(user=administrador)
     api.post(
         f"/api/pagos/{creado.data['id']}/anular/", {"motivo": "Error"}, format="json"
     )
@@ -237,12 +240,13 @@ def test_no_se_anula_dos_veces(api, cobrador):
 
 
 @pytest.mark.django_db
-def test_un_pago_anulado_no_cuenta_para_el_saldo(api, cobrador):
+def test_un_pago_anulado_no_cuenta_para_el_saldo(api, cobrador, administrador):
     orden = crear_orden_con_total()
     api.force_authenticate(user=cobrador)
     creado = api.post(
         "/api/pagos/", {"orden": orden.id, "monto": "50", "forma_pago": "contado"}, format="json"
     )
+    api.force_authenticate(user=administrador)
     api.post(f"/api/pagos/{creado.data['id']}/anular/", {"motivo": "Error"}, format="json")
 
     resp = api.get(f"/api/ordenes/{orden.id}/")
@@ -290,7 +294,7 @@ def test_estado_de_cuenta_agrupa_particulares(api, cobrador):
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize("rol", ["admin", "encargada", "reportes"])
+@pytest.mark.parametrize("rol", ["admin", "encargada"])
 def test_los_roles_autorizados_registran_pagos(api, rol):
     orden = crear_orden_con_total()
     api.force_authenticate(user=usuario_con_rol(rol))
@@ -330,7 +334,7 @@ def test_sin_sesion_no_se_consultan_ni_registran_pagos(api):
 
 
 @pytest.mark.django_db
-def test_filtra_pagos_por_cliente_forma_y_anulado(api, cobrador):
+def test_filtra_pagos_por_cliente_forma_y_anulado(api, cobrador, administrador):
     cliente = Cliente.objects.create(nombre="Clínica Norte")
     orden_a = crear_orden_con_total(cliente=cliente)
     orden_b = crear_orden_con_total()
@@ -350,6 +354,7 @@ def test_filtra_pagos_por_cliente_forma_y_anulado(api, cobrador):
     assert len(resp.data["results"]) == 1
     assert resp.data["results"][0]["forma_pago"] == "contado"
 
+    api.force_authenticate(user=administrador)
     api.post(f"/api/pagos/{a.data['id']}/anular/", {"motivo": "Error"}, format="json")
     resp = api.get("/api/pagos/?anulado=true")
     assert len(resp.data["results"]) == 1

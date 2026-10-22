@@ -53,7 +53,7 @@ def test_entrega_sin_correo_marca_entregada(api):
 
 @pytest.mark.django_db
 def test_entrega_con_correo_envia_el_pdf(api):
-    api.force_authenticate(user=usuario_rol("reportes"))
+    api.force_authenticate(user=usuario_rol("encargada"))
     orden, reporte = crear_orden_con_reporte()
 
     resp = api.post(
@@ -88,7 +88,9 @@ def test_no_entrega_sin_reporte(api):
 
 
 @pytest.mark.django_db
-def test_auxiliar_no_entrega(api, usuario):
+def test_un_rol_fuera_de_la_politica_no_entrega(api, usuario):
+    usuario.rol = "auxiliar"
+    usuario.save()
     api.force_authenticate(user=usuario)
     orden, reporte = crear_orden_con_reporte()
 
@@ -153,7 +155,7 @@ def test_fallo_de_correo_no_marca_entrega(api, monkeypatch):
 
 
 @pytest.mark.django_db
-def test_no_reentrega_tras_revertir_el_estado(api):
+def test_el_estado_no_se_puede_revertir_por_la_api(api):
     api.force_authenticate(user=usuario_rol("encargada"))
     orden, reporte = crear_orden_con_reporte()
     api.post(
@@ -165,9 +167,10 @@ def test_no_reentrega_tras_revertir_el_estado(api):
     revertir = api.patch(
         f"/api/ordenes/{orden.id}/", {"estado": Orden.Estado.PDF}, format="json"
     )
-    assert revertir.status_code == 200
+    assert revertir.status_code == 400
     orden.refresh_from_db()
-    assert orden.estado == Orden.Estado.PDF
+    assert orden.estado == Orden.Estado.ENTREGADA
+
     resp = api.post(
         f"/api/ordenes/{orden.id}/entrega/",
         {"enviado_a": "otra@example.com"},
