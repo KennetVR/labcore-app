@@ -26,7 +26,7 @@ Rama: `feat/permisos-roles`. Runner: `pytest` (backend), Playwright (E2E) y `npm
 | T4 | S9 | inline | hecho | `frontend/src/api/permisos.ts`; gating en pacientes, clientes, catálogo, tarifarios, pagos y detalle; reapertura admin con motivo |
 | T5 | S10 | inline | hecho | 30 pruebas Playwright en verde; mocks de rol actualizados y caso «el encargado cobra pero no anula» |
 | T6 | S2, S3, S7 | inline | hecho | `docs/roles.md` y actualización de facturación, reportes, resultados, sesión, módulos y QA |
-| T7 | S10 | inline | en curso | `npm run build` y `npm run lint` en verde; migración aplicada a la base local |
+| T7 | S10 | inline | hecho | `npm run build` y `npm run lint` en verde; migración aplicada a la base local; verificación independiente con 1 bloqueador corregido |
 
 ## Log
 
@@ -37,6 +37,7 @@ Rama: `feat/permisos-roles`. Runner: `pytest` (backend), Playwright (E2E) y `npm
 - **L5 (decisión):** `encargada` conserva su identificador persistido para no romper cuentas ni historial; solo cambia la etiqueta visible a «Encargado».
 - **L6 (decisión):** las cuentas con roles eliminados pasan a `encargada` en la migración. Es la única reasignación automática y queda documentada; no se borra ningún usuario.
 - **L7 (interfaz):** `permisos.ts` replica la matriz; el encargado ve catálogo y tarifarios sin botones de edición, no ve eliminar en pacientes/clientes, cobra sin anular y no ve «Reabrir para corregir». La reapertura pide motivo y solo aparece en `validada` sin reporte.
-- **L8 (pruebas):** la suite backend pasó de 190 a 220 casos. Los mocks E2E dejaron de usar roles eliminados: editar configuración usa `admin`; operar usa `encargada`. Playwright: 30/30.
+- **L8 (pruebas):** la suite backend pasó de 133 casos en el baseline a 220 con la matriz nueva. Los mocks E2E dejaron de usar roles eliminados: editar configuración usa `admin`; operar usa `encargada`. Playwright: 30/30.
 - **L9 (base local):** `accounts.0002_dos_roles` aplicada. `admin` sigue `admin`; `encargada` sigue `encargada`; la cuenta `reportes` pasó a `encargada`.
 - **L10 (verificación):** `pytest` 220 pruebas, 0 fallos, 0 errores; `makemigrations --check` sin cambios; Playwright 30/30; `npm run build` y `npm run lint` en verde.
+- **L11 (verificación independiente):** el verificador encontró un bloqueador en S6: `POST /validar/` sobre una orden ya `validada` devolvía 200 y reescribía `validado_por`/`validado_at` sin bitácora. Corregido: `validar` rechaza `validada`, `pdf` y `entregada` con `400`. También se rechaza `anulado` al crear un pago y se desregistró `auth.Group` del admin. Se agregaron 4 pruebas backend y 3 E2E de paridad de interfaz; tras la corrección: `pytest` 224 y Playwright 33, todo en verde.
