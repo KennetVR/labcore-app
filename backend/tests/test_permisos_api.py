@@ -220,6 +220,17 @@ def test_el_estado_no_se_escribe_por_la_api(api, usuario):
 
 
 @pytest.mark.django_db
+def test_el_estado_no_se_acepta_al_crear_la_orden(api, usuario):
+    api.force_authenticate(user=usuario)
+
+    resp = api.post("/api/ordenes/", {"estado": "validada"}, format="json")
+
+    assert resp.status_code == 400
+    assert "estado" in resp.data
+    assert Orden.objects.count() == 0
+
+
+@pytest.mark.django_db
 def test_no_acepta_resultados_al_crear_la_orden(api, usuario):
     examen = crear_examen()
     api.force_authenticate(user=usuario)
@@ -356,6 +367,27 @@ def test_reabrir_deja_rastro_y_exige_nueva_validacion(api, administrador):
     assert orden.estado == Orden.Estado.VALIDADA
 
 
+@pytest.mark.django_db
+def test_no_se_revalida_una_orden_ya_validada(api, usuario):
+    orden = Orden.objects.create(estado=Orden.Estado.VALIDADA)
+    examen = crear_examen()
+    item = OrdenItem.objects.create(
+        orden=orden,
+        examen=examen,
+        resultado="95",
+        validado_por=usuario,
+        validado_at=timezone.now(),
+    )
+    api.force_authenticate(user=usuario)
+
+    resp = api.post(f"/api/ordenes/{orden.id}/validar/", {}, format="json")
+
+    assert resp.status_code == 400
+    item.refresh_from_db()
+    assert item.validado_at is not None
+    assert item.validado_por_id == usuario.id
+
+
 # --- S7 pagos -------------------------------------------------------------
 
 
@@ -380,6 +412,22 @@ def test_el_encargado_cobra_pero_no_anula(api, usuario):
     pago = Pago.objects.get(pk=creado.data["id"])
     assert pago.anulado is False
     assert pago.motivo_anulacion == ""
+
+
+@pytest.mark.django_db
+def test_no_se_marca_anulado_al_crear_el_pago(api, usuario):
+    orden = crear_orden_con_total()
+    api.force_authenticate(user=usuario)
+
+    resp = api.post(
+        "/api/pagos/",
+        {"orden": orden.id, "monto": "10", "forma_pago": "contado", "anulado": True},
+        format="json",
+    )
+
+    assert resp.status_code == 400
+    assert "anulado" in resp.data
+    assert Pago.objects.count() == 0
 
 
 # --- S4 un rol fuera de la política falla cerrado --------------------------
@@ -410,11 +458,29 @@ def test_un_rol_fuera_de_la_politica_no_accede(api, usuario, metodo, ruta):
 
 @pytest.mark.django_db
 def test_el_admin_de_django_solo_expone_identidades_y_bitacora():
-    assert Usuario in django_admin.site._registry
-    assert Bitacora in django_admin.site._registry
+    assert set(django_admin.site._registry) == {Usuario, Bitacora}
 
     for modelo in (Orden, OrdenItem, Reporte, Pago, Paciente, Cliente, Examen, Zona):
         assert modelo not in django_admin.site._registry
+
+
+@pytest.mark.django_db
+def test_la_migracion_reasigna_roles_eliminados_sin_borrar():
+    from importlib import import_module
+
+    from django.apps import apps
+
+    historica = get_user_model().objects.create_user(
+        username="historica", password="qa-pass-2026", rol="reportes"
+    )
+    total = get_user_model().objects.count()
+
+    modulo = import_module("accounts.migrations.0002_dos_roles")
+    modulo.unificar_roles(apps, None)
+
+    historica.refresh_from_db()
+    assert historica.rol == "encargada"
+    assert get_user_model().objects.count() == total
 
 
 def _request(user):

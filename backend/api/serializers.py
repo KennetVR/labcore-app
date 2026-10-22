@@ -320,6 +320,26 @@ class PagoSerializer(serializers.ModelSerializer):
     registrado_por_nombre = serializers.SerializerMethodField()
     anulado_por_nombre = serializers.SerializerMethodField()
 
+    CAMPOS_DE_ANULACION = (
+        "anulado",
+        "anulado_por",
+        "anulado_at",
+        "motivo_anulacion",
+    )
+
+    def run_validation(self, data=serializers.empty):
+        # La anulación tiene su propia acción, que exige motivo y deja rastro.
+        if isinstance(data, dict):
+            campos = [campo for campo in self.CAMPOS_DE_ANULACION if campo in data]
+            if campos:
+                raise serializers.ValidationError(
+                    {
+                        campo: "La anulación se registra con la acción anular."
+                        for campo in campos
+                    }
+                )
+        return super().run_validation(data)
+
     def get_orden_total(self, obj):
         total = obj.orden.calcular_total()
         return str(total) if total is not None else None

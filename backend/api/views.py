@@ -410,9 +410,16 @@ class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
         orden = self.get_object()
-        if orden.estado in (Orden.Estado.PDF, Orden.Estado.ENTREGADA):
+        if orden.estado in (
+            Orden.Estado.VALIDADA,
+            Orden.Estado.PDF,
+            Orden.Estado.ENTREGADA,
+        ):
             return Response(
-                {"detail": "La orden ya fue entregada."},
+                {
+                    "detail": "La orden ya está validada. Para corregirla, "
+                    "un administrador debe reabrirla."
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         items = list(orden.items.all())
