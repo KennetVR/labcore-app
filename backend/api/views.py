@@ -1,11 +1,21 @@
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError
 from django.core.validators import validate_email
 from django.db import transaction
-from django.db.models import ProtectedError
+from django.db.models import (
+    DecimalField,
+    ProtectedError,
+    Q,
+    Sum,
+    Value,
+)
+from django.db.models.functions import Coalesce
 from django.http import FileResponse
 from django.utils import timezone
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 
 from catalogo.models import (
@@ -16,6 +26,8 @@ from catalogo.models import (
     TarifarioPaquete,
     Zona,
 )
+from facturacion.models import Pago
+from ordenes.banderas import calcular_bandera, estado_rango
 from ordenes.models import Orden
 from pacientes.models import Paciente
 from reportes.correo import enviar_reporte_por_correo
@@ -30,6 +42,7 @@ from .serializers import (
     OrdenSerializer,
     PaqueteSerializer,
     PacienteSerializer,
+    PagoSerializer,
     ReporteSerializer,
     TarifarioExamenSerializer,
     TarifarioPaqueteSerializer,
@@ -107,8 +120,148 @@ class TarifarioPaqueteViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
     search_fields = ["paquete__nombre"]
 
 
+ROLES_PAGO = ("admin", "encargada", "reportes")
+
+
+def puede_gestionar_pagos(user):
+    return getattr(user, "rol", "") in ROLES_PAGO
+
+
+def valor_booleano(valor):
+    """Lee un booleano sin confundir la cadena "false" con True."""
+    if isinstance(valor, bool):
+        return valor
+    if isinstance(valor, str):
+        return valor.strip().lower() in ("true", "1", "yes", "si")
+    return bool(valor)
+
+
+class PagoViewSet(viewsets.ModelViewSet):
+    """Los pagos no se editan ni se borran: se anulan. Solo lectura y alta."""
+
+    queryset = Pago.objects.select_related(
+        "orden", "orden__cliente", "registrado_por", "anulado_por"
+    )
+    serializer_class = PagoSerializer
+    http_method_names = ["get", "post", "head", "options"]
+    filter_backends = [SearchFilter]
+    search_fields = ["orden__numero", "orden__cliente__nombre", "observacion"]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        params = self.request.query_params
+        if params.get("cliente"):
+            queryset = queryset.filter(orden__cliente_id=params["cliente"])
+        if params.get("orden"):
+            queryset = queryset.filter(orden_id=params["orden"])
+        if params.get("forma_pago"):
+            queryset = queryset.filter(forma_pago=params["forma_pago"])
+        anulado = params.get("anulado")
+        if anulado in ("true", "false"):
+            queryset = queryset.filter(anulado=anulado == "true")
+        return queryset
+
+    def create(self, request, *args, **kwargs):
+        if not puede_gestionar_pagos(request.user):
+            return Response(
+                {"detail": "No tiene permiso para registrar pagos."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return super().create(request, *args, **kwargs)
+
+    def perform_create(self, serializer):
+        serializer.save(registrado_por=self.request.user)
+
+    @action(detail=True, methods=["post"])
+    def anular(self, request, pk=None):
+        if not puede_gestionar_pagos(request.user):
+            return Response(
+                {"detail": "No tiene permiso para anular pagos."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        pago = self.get_object()
+        if pago.anulado:
+            return Response(
+                {"detail": "El pago ya fue anulado."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        # El motivo se valida antes de convertirlo a texto: un null serializado
+        # no puede terminar guardado como el literal "None".
+        motivo = request.data.get("motivo")
+        if not isinstance(motivo, str) or not motivo.strip():
+            return Response(
+                {"motivo": "Indique el motivo de la anulación."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        motivo = motivo.strip()
+        pago.anulado = True
+        pago.anulado_por = request.user
+        pago.anulado_at = timezone.now()
+        pago.motivo_anulacion = motivo
+        pago.save(update_fields=["anulado", "anulado_por", "anulado_at", "motivo_anulacion"])
+        return Response(self.get_serializer(pago).data)
+
+    @action(detail=False, methods=["get"], url_path="estado-cuenta")
+    def estado_cuenta(self, request):
+        """Resumen por cliente: facturado, pagado y saldo pendiente."""
+        ordenes = Orden.objects.select_related("cliente").all()
+        pagado_por_orden = {
+            orden_id: total
+            for orden_id, total in Pago.objects.filter(anulado=False)
+            .values_list("orden_id")
+            .annotate(suma=Sum("monto"))
+        }
+        filas = {}
+        for orden in ordenes:
+            total = orden.calcular_total()
+            if total is None:
+                continue
+            nombre = orden.cliente.nombre if orden.cliente else "Particular"
+            clave = orden.cliente_id or 0
+            fila = filas.get(clave)
+            if fila is None:
+                fila = filas[clave] = {
+                    "cliente_id": orden.cliente_id,
+                    "cliente": nombre,
+                    "facturado": Decimal("0"),
+                    "pagado": Decimal("0"),
+                }
+            fila["facturado"] += total
+            fila["pagado"] += pagado_por_orden.get(orden.id, Decimal("0"))
+        resultado = []
+        for fila in filas.values():
+            facturado = fila["facturado"].quantize(Decimal("0.01"))
+            pagado = fila["pagado"].quantize(Decimal("0.01"))
+            resultado.append(
+                {
+                    "cliente_id": fila["cliente_id"],
+                    "cliente": fila["cliente"],
+                    "facturado": str(facturado),
+                    "pagado": str(pagado),
+                    "saldo": str((facturado - pagado).quantize(Decimal("0.01"))),
+                }
+            )
+        resultado.sort(key=lambda fila: fila["cliente"])
+        return Response(resultado)
+
+
 class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
-    queryset = Orden.objects.select_related("reporte")
+    queryset = (
+        Orden.objects.select_related("reporte")
+        .annotate(
+            # El saldo se calcula por orden en el listado: se agrega el total
+            # pagado en la misma consulta para no sumar una consulta por orden.
+            total_pagado_agregado=Coalesce(
+                Sum("pagos__monto", filter=Q(pagos__anulado=False)),
+                Value(Decimal("0")),
+                output_field=DecimalField(max_digits=12, decimal_places=2),
+            )
+        )
+        # El annotate con agrupacion descarta el orden por defecto del modelo.
+        .order_by("-creado")
+        # Los pagos de cada orden se traen de una vez para no consultar por orden.
+        .prefetch_related("pagos")
+    )
     serializer_class = OrdenSerializer
     search_fields = ["numero", "paciente__dni", "paciente__apellidos"]
 
@@ -157,13 +310,27 @@ class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
                     },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
-            cambios.append((item, resultado, bandera))
+            # Si el cliente no envia el flag se respeta el origen ya guardado, para
+            # que una bandera manual del laboratorio sobreviva a un guardado posterior.
+            if "bandera_manual" in entry:
+                manual = valor_booleano(entry["bandera_manual"])
+            else:
+                manual = item.bandera_manual
+            cambios.append((item, resultado, bandera, manual))
 
         with transaction.atomic():
-            for item, resultado, bandera in cambios:
+            for item, resultado, bandera, manual in cambios:
                 item.resultado = resultado
-                item.bandera = bandera
-                item.save(update_fields=["resultado", "bandera"])
+                estado = estado_rango(item.examen, resultado)
+                if manual or estado == "sin_rango":
+                    # La bandera manual del laboratorio tiene prioridad; sin rango
+                    # de referencia el sistema no puede calcular una.
+                    item.bandera = bandera
+                    item.bandera_manual = manual
+                else:
+                    item.bandera = calcular_bandera(item.examen, resultado)
+                    item.bandera_manual = False
+                item.save(update_fields=["resultado", "bandera", "bandera_manual"])
             self._actualizar_estado_resultados(orden)
         return Response(self.get_serializer(orden).data)
 
@@ -228,6 +395,13 @@ class OrdenViewSet(ProtectedDestroyMixin, viewsets.ModelViewSet):
         reporte = Reporte(orden=orden, generado_por=request.user)
         try:
             with transaction.atomic():
+                # El PDF imprime la bandera guardada: se recalcula para que
+                # refleje el rango de referencia vigente. Las manuales no se tocan.
+                for item in orden.items.select_related("examen"):
+                    if item.bandera_manual:
+                        continue
+                    item.bandera = calcular_bandera(item.examen, item.resultado)
+                    item.save(update_fields=["bandera"])
                 reporte.save()
                 reporte.codigo_qr = f"LAB-{reporte.numero}"
                 reporte.pdf.save(

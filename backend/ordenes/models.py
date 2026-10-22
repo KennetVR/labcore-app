@@ -72,6 +72,23 @@ class Orden(models.Model):
             total += precio * item.cantidad
         return total.quantize(Decimal("0.01"))
 
+    def total_pagado(self):
+        """Suma de los pagos que no fueron anulados."""
+        from django.db.models import Sum
+
+        anotado = getattr(self, "total_pagado_agregado", None)
+        if anotado is not None:
+            return Decimal(anotado).quantize(Decimal("0.01"))
+        total = self.pagos.filter(anulado=False).aggregate(suma=Sum("monto"))["suma"]
+        return (total or Decimal("0")).quantize(Decimal("0.01"))
+
+    def saldo(self):
+        """Saldo pendiente: el total menos lo pagado. None si la orden no tiene total."""
+        total = self.calcular_total()
+        if total is None:
+            return None
+        return (total - self.total_pagado()).quantize(Decimal("0.01"))
+
     def __str__(self):
         return self.numero
 
@@ -89,6 +106,7 @@ class OrdenItem(models.Model):
     medicion = models.CharField(max_length=10, choices=Medicion.choices, default=Medicion.UNICA)
     resultado = models.CharField(max_length=100, blank=True)
     bandera = models.CharField(max_length=5, blank=True)
+    bandera_manual = models.BooleanField(default=False)
     importado_de = models.CharField(max_length=50, blank=True)
     validado_por = models.ForeignKey(
         settings.AUTH_USER_MODEL,

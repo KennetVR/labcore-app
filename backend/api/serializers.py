@@ -12,6 +12,8 @@ from catalogo.models import (
     TarifarioPaquete,
     Zona,
 )
+from facturacion.models import Pago
+from ordenes.banderas import calcular_bandera, estado_rango
 from ordenes.models import Orden, OrdenItem
 from pacientes.models import Paciente
 from reportes.models import EnvioReporte, Reporte
@@ -236,6 +238,22 @@ class OrdenItemSerializer(serializers.ModelSerializer):
     paquete_nombre = serializers.CharField(
         source="paquete.nombre", read_only=True, default=""
     )
+    unidad = serializers.CharField(source="examen.unidad", read_only=True)
+    ref_min = serializers.DecimalField(
+        source="examen.ref_min", max_digits=12, decimal_places=4, read_only=True, allow_null=True
+    )
+    ref_max = serializers.DecimalField(
+        source="examen.ref_max", max_digits=12, decimal_places=4, read_only=True, allow_null=True
+    )
+    ref_texto = serializers.CharField(source="examen.ref_texto", read_only=True)
+    bandera_calculada = serializers.SerializerMethodField()
+    rango_estado = serializers.SerializerMethodField()
+
+    def get_bandera_calculada(self, obj):
+        return calcular_bandera(obj.examen, obj.resultado)
+
+    def get_rango_estado(self, obj):
+        return estado_rango(obj.examen, obj.resultado)
 
     def validate(self, attrs):
         paquete = attrs.get("paquete")
@@ -256,15 +274,109 @@ class OrdenItemSerializer(serializers.ModelSerializer):
             "medicion",
             "resultado",
             "bandera",
+            "bandera_manual",
+            "bandera_calculada",
+            "rango_estado",
+            "unidad",
+            "ref_min",
+            "ref_max",
+            "ref_texto",
             "validado_por",
             "validado_at",
         ]
         read_only_fields = ["validado_por", "validado_at"]
 
 
+class PagoSerializer(serializers.ModelSerializer):
+    orden = serializers.PrimaryKeyRelatedField(queryset=Orden.objects.all())
+    orden_numero = serializers.CharField(source="orden.numero", read_only=True)
+    orden_total = serializers.SerializerMethodField()
+    orden_cliente = serializers.CharField(
+        source="orden.cliente.nombre", read_only=True, default="Particular"
+    )
+    total_pagado = serializers.SerializerMethodField()
+    saldo = serializers.SerializerMethodField()
+    registrado_por_nombre = serializers.SerializerMethodField()
+    anulado_por_nombre = serializers.SerializerMethodField()
+
+    def get_orden_total(self, obj):
+        total = obj.orden.calcular_total()
+        return str(total) if total is not None else None
+
+    def get_total_pagado(self, obj):
+        return str(obj.orden.total_pagado())
+
+    def get_saldo(self, obj):
+        saldo = obj.orden.saldo()
+        return str(saldo) if saldo is not None else None
+
+    def get_registrado_por_nombre(self, obj):
+        if obj.registrado_por is None:
+            return ""
+        return obj.registrado_por.get_full_name() or obj.registrado_por.username
+
+    def get_anulado_por_nombre(self, obj):
+        if obj.anulado_por is None:
+            return ""
+        return obj.anulado_por.get_full_name() or obj.anulado_por.username
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        orden = attrs.get("orden", getattr(self.instance, "orden", None))
+        monto = attrs.get("monto", getattr(self.instance, "monto", None))
+        if monto is not None and monto <= 0:
+            raise serializers.ValidationError({"monto": "El monto debe ser mayor a cero."})
+        if orden is not None:
+            total = orden.calcular_total()
+            if total is None:
+                raise serializers.ValidationError(
+                    {"orden": "La orden no tiene total: registra una tarifa antes de cobrar."}
+                )
+            saldo = orden.saldo()
+            if monto is not None and saldo is not None and monto > saldo:
+                raise serializers.ValidationError(
+                    {"monto": "El monto supera el saldo pendiente de la orden."}
+                )
+        return attrs
+
+    class Meta:
+        model = Pago
+        fields = [
+            "id",
+            "orden",
+            "orden_numero",
+            "orden_total",
+            "orden_cliente",
+            "monto",
+            "forma_pago",
+            "observacion",
+            "registrado_por",
+            "registrado_por_nombre",
+            "fecha",
+            "anulado",
+            "anulado_por",
+            "anulado_por_nombre",
+            "anulado_at",
+            "motivo_anulacion",
+            "total_pagado",
+            "saldo",
+        ]
+        read_only_fields = [
+            "registrado_por",
+            "fecha",
+            "anulado",
+            "anulado_por",
+            "anulado_at",
+            "motivo_anulacion",
+        ]
+
+
 class OrdenSerializer(serializers.ModelSerializer):
     items = OrdenItemSerializer(many=True, required=False)
+    pagos = PagoSerializer(many=True, read_only=True)
     total = serializers.SerializerMethodField()
+    total_pagado = serializers.SerializerMethodField()
+    saldo = serializers.SerializerMethodField()
     reporte = serializers.SerializerMethodField()
     paciente_nombre = serializers.CharField(
         source="paciente.nombre_completo", read_only=True, default=""
@@ -286,13 +398,34 @@ class OrdenSerializer(serializers.ModelSerializer):
             "fecha",
             "items",
             "total",
+            "total_pagado",
+            "saldo",
+            "pagos",
             "reporte",
         ]
         read_only_fields = ["numero", "fecha", "creado_por"]
 
     def get_total(self, obj):
-        total = obj.calcular_total()
+        total = self._total_de(obj)
         return str(total) if total is not None else None
+
+    def get_total_pagado(self, obj):
+        return str(obj.total_pagado())
+
+    def get_saldo(self, obj):
+        total = self._total_de(obj)
+        if total is None:
+            return None
+        return str((total - obj.total_pagado()).quantize(Decimal("0.01")))
+
+    def _total_de(self, obj):
+        """Calcula el total una sola vez por orden: el total consulta tarifas."""
+        cache = getattr(self, "_totales", None)
+        if cache is None:
+            cache = self._totales = {}
+        if obj.pk not in cache:
+            cache[obj.pk] = obj.calcular_total()
+        return cache[obj.pk]
 
     def get_reporte(self, obj):
         reporte = getattr(obj, "reporte", None)

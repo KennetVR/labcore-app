@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test'
 
 const baseItems = [
-  { id: 1, examen: 11, examen_codigo: 'GLU', examen_nombre: 'Glucosa', paquete: null, paquete_nombre: '', cantidad: 1, medicion: 'unica', resultado: '', bandera: '', validado_por: null, validado_at: null },
-  { id: 2, examen: 12, examen_codigo: 'HEM', examen_nombre: 'Hemograma', paquete: null, paquete_nombre: '', cantidad: 1, medicion: 'unica', resultado: '', bandera: '', validado_por: null, validado_at: null },
+  { id: 1, examen: 11, examen_codigo: 'GLU', examen_nombre: 'Glucosa', paquete: null, paquete_nombre: '', cantidad: 1, medicion: 'unica', resultado: '', bandera: '', bandera_manual: false, bandera_calculada: '', rango_estado: 'sin_rango', unidad: 'mg/dL', ref_min: null, ref_max: null, ref_texto: '', validado_por: null, validado_at: null },
+  { id: 2, examen: 12, examen_codigo: 'HEM', examen_nombre: 'Hemograma', paquete: null, paquete_nombre: '', cantidad: 1, medicion: 'unica', resultado: '', bandera: '', bandera_manual: false, bandera_calculada: '', rango_estado: 'sin_rango', unidad: 'g/dL', ref_min: null, ref_max: null, ref_texto: '', validado_por: null, validado_at: null },
 ]
 const baseOrder = {
   id: 5, numero: '202601010001', paciente_nombre: 'Perez, Ana', cliente_nombre: 'Particular',
@@ -51,8 +51,8 @@ test('capture and validate order results', async ({ page }) => {
 
   await expect.poll(() => saved).toEqual({
     items: [
-      { id: 1, resultado: '95', bandera: '' },
-      { id: 2, resultado: '14.2', bandera: 'H' },
+      { id: 1, resultado: '95', bandera: '', bandera_manual: false },
+      { id: 2, resultado: '14.2', bandera: 'H', bandera_manual: true },
     ],
   })
   await expect(page.getByText('En proceso')).toBeVisible()

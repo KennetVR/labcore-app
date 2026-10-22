@@ -1,12 +1,28 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/client'
-import type { OrderDetail as Order, EnvioReporte } from '../api/types'
-import { money, orderStates } from '../api/types'
+import type { OrderDetail as Order, OrderItem, EnvioReporte } from '../api/types'
+import { money, orderStates, paymentMethods, paymentRoles } from '../api/types'
 
 const measurements: Record<string, string> = { unica: 'Única', pre_post: 'Pre y post' }
 const closedStates = ['validada', 'pdf', 'entregada']
+const rangeLabels: Record<string, string> = { alto: 'Alto', bajo: 'Bajo', normal: 'En rango' }
 
-type Draft = { resultado: string; bandera: string }
+type Draft = { resultado: string; bandera: string; banderaManual: boolean }
+
+function formatRef(value: string | null): string {
+  if (value === null || value === '') return ''
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? String(parsed) : value
+}
+
+function referenceText(item: OrderItem): string {
+  const min = formatRef(item.ref_min)
+  const max = formatRef(item.ref_max)
+  if (min && max) return `${min} - ${max}${item.unidad ? ` ${item.unidad}` : ''}`
+  if (min) return `≥ ${min}${item.unidad ? ` ${item.unidad}` : ''}`
+  if (max) return `≤ ${max}${item.unidad ? ` ${item.unidad}` : ''}`
+  return item.ref_texto || ''
+}
 
 export default function OrderDetail({ id, role, onBack }: { id: number; role: string; onBack: () => void }) {
   const [order, setOrder] = useState<Order | null>(null)
@@ -17,10 +33,17 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
   const [busy, setBusy] = useState('')
   const [retry, setRetry] = useState(0)
   const [history, setHistory] = useState<EnvioReporte[]>([])
+  const [payAmount, setPayAmount] = useState('')
+  const [payMethod, setPayMethod] = useState('contado')
+  const [payNote, setPayNote] = useState('')
 
   function load(data: Order) {
     setOrder(data)
-    setDrafts(Object.fromEntries(data.items.map(item => [item.id, { resultado: item.resultado, bandera: item.bandera }])))
+    setDrafts(Object.fromEntries(data.items.map(item => [item.id, {
+      resultado: item.resultado,
+      bandera: item.bandera,
+      banderaManual: item.bandera_manual,
+    }])))
   }
 
   useEffect(() => {
@@ -43,6 +66,7 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
   const editable = order !== null && !closedStates.includes(order.estado)
   const canValidate = role === 'admin' || role === 'encargada'
   const canReport = role === 'admin' || role === 'encargada' || role === 'reportes'
+  const canPay = paymentRoles.includes(role)
   const complete = order !== null && order.items.length > 0
     && order.items.every(item => (drafts[item.id]?.resultado ?? '').trim() !== '')
 
@@ -62,6 +86,7 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
         id: item.id,
         resultado: drafts[item.id]?.resultado ?? '',
         bandera: drafts[item.id]?.bandera ?? '',
+        bandera_manual: Boolean(drafts[item.id]?.banderaManual ?? item.bandera_manual),
       })),
     })
   }
@@ -101,12 +126,46 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
     finally { setBusy('') }
   }
 
-  const updateDraft = (itemId: number, field: keyof Draft, value: string) =>
+  async function registerPayment() {    if (!order) return
+    setBusy('pago'); setError('')
+    try {
+      await api('/pagos/', {
+        method: 'POST',
+        body: JSON.stringify({
+          orden: order.id,
+          monto: payAmount.trim(),
+          forma_pago: payMethod,
+          observacion: payNote.trim(),
+        }),
+      })
+      setPayAmount(''); setPayNote('')
+      setRetry(n => n + 1)
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo registrar el pago.') }
+    finally { setBusy('') }
+  }
+
+  async function annulPayment(paymentId: number, orderNumber: string) {
+    const motivo = window.prompt(`Motivo de la anulación del pago de ${orderNumber}:`)
+    if (motivo === null) return
+    if (!motivo.trim()) { setError('Indique el motivo de la anulación.'); return }
+    setBusy('anular'); setError('')
+    try {
+      await api(`/pagos/${paymentId}/anular/`, {
+        method: 'POST', body: JSON.stringify({ motivo: motivo.trim() }),
+      })
+      setRetry(n => n + 1)
+    } catch (e) { setError(e instanceof Error ? e.message : 'No se pudo anular el pago.') }
+    finally { setBusy('') }
+  }
+
+  const updateDraft = (itemId: number, field: 'resultado' | 'bandera', value: string) =>
     setDrafts(current => {
-      const existing = current[itemId] ?? { resultado: '', bandera: '' }
+      const existing = current[itemId] ?? { resultado: '', bandera: '', banderaManual: false }
       const next = field === 'resultado'
         ? { ...existing, resultado: value }
-        : { ...existing, bandera: value }
+        // Editar la bandera a mano le da prioridad sobre el calculo automatico;
+        // vaciarla devuelve el control al sistema.
+        : { ...existing, bandera: value, banderaManual: value.trim() !== '' }
       return { ...current, [itemId]: next }
     })
 
@@ -127,13 +186,20 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
           <div><dt>Cliente</dt><dd>{order.cliente_nombre || 'Particular'}</dd></div>
           <div><dt>Solicitado por</dt><dd>{order.solicitado_por || 'Sin dato'}</dd></div>
           <div><dt>Total</dt><dd>{order.total === null ? <span className="warning">Tarifa pendiente</span> : money(order.total)}</dd></div>
+          <div><dt>Pagado</dt><dd>{money(order.total_pagado ?? '0')}</dd></div>
+          <div><dt>Saldo</dt><dd>{order.saldo === null ? <span className="warning">Sin total</span>
+            : Number(order.saldo) > 0 ? <span className="warning">{money(order.saldo)}</span> : money(order.saldo)}</dd></div>
         </dl>
       </section>
       <section className="panel detail-panel">
         <h2>Estudios</h2>
         {order.items.length === 0 ? <p className="empty">La orden no tiene estudios.</p> : <div className="table-scroll">
-          <table><thead><tr><th>Estudio</th><th>Cantidad</th><th>Medición</th><th>Resultado</th><th>Bandera</th></tr></thead>
-            <tbody>{order.items.map(item => <tr key={item.id}>
+          <table><thead><tr><th>Estudio</th><th>Cantidad</th><th>Medición</th><th>Resultado</th><th>Referencia</th><th>Bandera</th></tr></thead>
+            <tbody>{order.items.map(item => {
+              const manual = drafts[item.id]?.banderaManual ?? item.bandera_manual
+              // Lo que el sistema va a calcular al guardar, si el laboratorio no define la bandera.
+              const sugerencia = !manual && item.bandera_calculada ? item.bandera_calculada : ''
+              return <tr key={item.id}>
               <td><strong>{item.paquete ? item.paquete_nombre : `${item.examen_codigo} — ${item.examen_nombre}`}</strong>
                 {item.paquete && <small>{item.examen_codigo} — {item.examen_nombre}</small>}</td>
               <td>{item.cantidad}</td>
@@ -142,12 +208,19 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
                 ? <input aria-label={`Resultado ${item.examen_codigo}`} className="result-input" maxLength={100}
                   value={drafts[item.id]?.resultado ?? ''} onChange={e => updateDraft(item.id, 'resultado', e.target.value)} />
                 : item.resultado || 'Pendiente'}</td>
+              <td className="ref-cell">{referenceText(item) || '—'}</td>
               <td>{editable
                 ? <input aria-label={`Bandera ${item.examen_codigo}`} className="flag-input" maxLength={5}
+                  placeholder={sugerencia}
+                  title={sugerencia ? `El sistema calcula: ${sugerencia}` : undefined}
                   value={drafts[item.id]?.bandera ?? ''} onChange={e => updateDraft(item.id, 'bandera', e.target.value)} />
                 : item.bandera || '—'}
+                {item.rango_estado !== 'sin_rango' && <span className={`badge rango ${item.rango_estado}`}>
+                  {rangeLabels[item.rango_estado]}
+                  {manual && ' · manual'}
+                </span>}
                 {item.validado_at && <span className="badge validada">Validado</span>}</td>
-            </tr>)}</tbody></table>
+            </tr>})}</tbody></table>
         </div>}
         {editable ? <div className="form-actions">
           <button disabled={busy !== ''} onClick={saveResults}>{busy === 'resultados' ? 'Guardando…' : 'Guardar resultados'}</button>
@@ -197,6 +270,41 @@ export default function OrderDetail({ id, role, onBack }: { id: number; role: st
           </button>
         </div>}
       </section> : null}
+      <section className="panel detail-panel">
+        <h2>Pagos</h2>
+        {(order.pagos ?? []).length === 0 ? <p className="empty">Esta orden no tiene pagos registrados.</p> : <div className="table-scroll">
+          <table><thead><tr><th>Fecha</th><th>Monto</th><th>Forma</th><th>Registrado por</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody>{(order.pagos ?? []).map(p => <tr key={p.id}>
+              <td>{new Date(p.fecha).toLocaleString('es-PE')}</td>
+              <td>{money(p.monto)}</td>
+              <td>{paymentMethods[p.forma_pago] || p.forma_pago}</td>
+              <td>{p.registrado_por_nombre || '—'}</td>
+              <td>{p.anulado
+                ? <span className="badge anulado" title={p.motivo_anulacion}>Anulado</span>
+                : <span className="badge validada">Vigente</span>}</td>
+              <td>{canPay && !p.anulado
+                ? <button className="secondary" disabled={busy !== ''} onClick={() => annulPayment(p.id, order.numero)}>Anular</button>
+                : null}</td>
+            </tr>)}</tbody></table>
+        </div>}
+        {canPay && order.total !== null && <div className="delivery-form" style={{marginTop: '12px'}}>
+          <label>Monto del pago
+            <input type="number" min="0.01" step="0.01" value={payAmount}
+              onChange={e => setPayAmount(e.target.value)} placeholder="0.00" />
+          </label>
+          <label>Forma de pago
+            <select value={payMethod} onChange={e => setPayMethod(e.target.value)}>
+              {Object.entries(paymentMethods).map(([key, title]) => <option key={key} value={key}>{title}</option>)}
+            </select>
+          </label>
+          <label>Observación
+            <input value={payNote} onChange={e => setPayNote(e.target.value)} maxLength={200} />
+          </label>
+          <button disabled={busy !== '' || !payAmount.trim()} onClick={registerPayment}>
+            {busy === 'pago' ? 'Registrando…' : 'Registrar pago'}
+          </button>
+        </div>}
+      </section>
       <section className="panel detail-panel">
         <h2>Observación</h2>
         <p>{order.observacion || 'Sin observaciones.'}</p>

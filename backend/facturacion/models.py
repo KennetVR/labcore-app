@@ -18,6 +18,17 @@ class Pago(models.Model):
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True
     )
     fecha = models.DateTimeField(auto_now_add=True)
+    # Un pago no se edita ni se borra: se anula. Nada se elimina del registro.
+    anulado = models.BooleanField(default=False)
+    anulado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="pagos_anulados",
+    )
+    anulado_at = models.DateTimeField(null=True, blank=True)
+    motivo_anulacion = models.CharField(max_length=200, blank=True)
 
     class Meta:
         verbose_name = "pago"

@@ -9,10 +9,14 @@ export type ExamTariff = { id: number; examen: number; examen_codigo: string; ex
 export type PackageTariff = { id: number; paquete: number; paquete_nombre: string; precio: string; zona: number | null; zona_nombre: string | null; cliente: number | null; cliente_nombre: string | null; vigencia_desde: string | null; activo: boolean }
 export type OrderReport = { id: number; numero: string; generado: string; pdf_url: string; enviado_a: string; entregado_at: string | null; entregado_por: string | null }
 export type Order = { id: number; numero: string; paciente_nombre: string; cliente_nombre: string; fecha: string; estado: string; total: string | null }
-export type OrderItem = { id: number; examen: number; examen_codigo: string; examen_nombre: string; paquete: number | null; paquete_nombre: string; cantidad: number; medicion: string; resultado: string; bandera: string; validado_por: number | null; validado_at: string | null }
-export type OrderDetail = Order & { observacion: string; solicitado_por: string; items: OrderItem[]; reporte: OrderReport | null }
+export type OrderItem = { id: number; examen: number; examen_codigo: string; examen_nombre: string; paquete: number | null; paquete_nombre: string; cantidad: number; medicion: string; resultado: string; bandera: string; bandera_manual: boolean; bandera_calculada: string; rango_estado: 'alto' | 'bajo' | 'normal' | 'sin_rango'; unidad: string; ref_min: string | null; ref_max: string | null; ref_texto: string; validado_por: number | null; validado_at: string | null }
+export type OrderDetail = Order & { observacion: string; solicitado_por: string; items: OrderItem[]; reporte: OrderReport | null; total_pagado: string; saldo: string | null; pagos: Payment[] }
 export type EnvioReporte = { id: number; enviado_a: string; usuario: string; fecha: string; estado: 'pendiente' | 'enviado' | 'fallido'; reenvio: boolean }
+export type Payment = { id: number; orden: number; orden_numero: string; orden_total: string | null; orden_cliente: string; monto: string; forma_pago: 'contado' | 'boleta' | 'factura'; observacion: string; registrado_por: number | null; registrado_por_nombre: string; fecha: string; anulado: boolean; anulado_por: number | null; anulado_por_nombre: string; anulado_at: string | null; motivo_anulacion: string; total_pagado: string; saldo: string | null }
+export type AccountStatement = { cliente_id: number | null; cliente: string; facturado: string; pagado: string; saldo: string }
 export type Item = { examen: number; paquete?: number; cantidad: number; medicion: string }
 export type Quote = { items: { precio_unitario: string; subtotal: string }[]; total: string }
 export const money = (value: string) => new Intl.NumberFormat('es-PE', { style: 'currency', currency: 'PEN' }).format(Number(value))
 export const orderStates: Record<string, string> = { registrada: 'Registrada', en_proceso: 'En proceso', resultada: 'Con resultados', validada: 'Validada', pdf: 'PDF generado', entregada: 'Entregada' }
+export const paymentMethods: Record<string, string> = { contado: 'Contado', boleta: 'Boleta', factura: 'Factura' }
+export const paymentRoles = ['admin', 'encargada', 'reportes']
